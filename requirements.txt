@@ -1,0 +1,8 @@
+fastapi
+strawberry-graphql[fastapi]
+uvicorn
+sqlalchemy[asyncio] >= 2.0.9
+aiomysql
+fastapi-jwt
+alembic
+passlib

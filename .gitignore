@@ -1,0 +1,10 @@
+venv/
+.idea/
+__pycache__/
+.pytest_cache/
+*.pyc
+.cache
+
+# app specific files and dirs
+uploads/*
+!uploads/.gitkeep

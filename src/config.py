@@ -1,0 +1,3 @@
+APP_DEBUG = True
+GRAPHIQL = True
+APP_SECRET_KEY = "test"
