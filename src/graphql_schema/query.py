@@ -1,5 +1,6 @@
 from strawberry.tools import merge_types
 from .entities.aircraft import AircraftQueries
+from .entities.airport import AirportQueries
 from .entities.copilot import CopilotQueries
 from .entities.flight import FlightQueries
 from .entities.user import UserQueries
@@ -9,6 +10,7 @@ from .entities.user import UserQueries
 
 Query = merge_types('Query', (
     AircraftQueries,
+    AirportQueries,
     FlightQueries,
     CopilotQueries,
     UserQueries

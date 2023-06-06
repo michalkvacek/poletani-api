@@ -1,4 +1,3 @@
-import os
 import uuid
 from typing import List, Optional
 import strawberry
@@ -6,6 +5,9 @@ from strawberry.file_uploads import Upload
 from sqlalchemy import select
 from database import models
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
+from upload_utils import handle_img_upload, delete_file
+
+AIRCRAFT_UPLOAD_DEST_PATH = "/app/uploads/aircrafts/"
 
 
 @strawberry_sqlalchemy_type(models.Aircraft)
@@ -44,20 +46,6 @@ class AircraftQueries:
         return (await info.context.db.scalars(query)).one()
 
 
-def check_directories(path: str):
-    if not os.path.isdir(path):
-        os.makedirs(path)
-
-
-async def handle_img_upload(file: Upload, path: str, filename: str):
-    check_directories(path)
-
-    content = await file.read()
-    image = open(path + "/" + filename, "wb")
-    image.write(content)
-    image.close()
-
-
 @strawberry.type
 class CreateAircraftMutation:
     @strawberry_sqlalchemy_input(models.Aircraft, exclude_fields=['id', 'photo_filename'])
@@ -68,21 +56,14 @@ class CreateAircraftMutation:
     async def create_aircraft(root, info, input: CreateAircraftInput) -> Aircraft:
         # TODO: kontrola organizace
 
-        filename = None
+        input_data = input.to_dict()
         if input.photo:
-            dest_path = "/app/uploads/aircrafts/"
-            filename = f"{uuid.uuid4()}-{input.photo.filename}"
-            await handle_img_upload(input.photo, dest_path, filename=filename)
+            input_data['photo_filename'] = await handle_img_upload(input.photo, AIRCRAFT_UPLOAD_DEST_PATH)
 
         return await models.Aircraft.create(
             info.context.db,
             data=dict(
-                name=input.name,
-                description=input.description,
-                model=input.model,
-                manufacturer=input.manufacturer,
-                photo_filename=filename,
-                organization_id=input.organization_id,
+                **input_data,
                 created_by_id=info.context.user_id,
             )
         )
@@ -98,17 +79,16 @@ class EditAircraftMutation:
     async def edit_aircraft(root, info, id: int, input: EditAircraftInput) -> Aircraft:
         # TODO: kontrola organizace
         # TODO: kontrola opravneni na akci
-        return await models.Aircraft.update(
-            info.context.db,
-            id,
-            data=dict(
-                name=input.name,
-                description=input.description,
-                model=input.model,
-                manufacturer=input.manufacturer,
-                organization_id=input.organization_id,
-            )
-        )
+
+        update_data = input.to_dict()
+        aircraft = await models.Aircraft.get_one(info.context.db, id)
+
+        if input.photo:
+            if aircraft.photo_filename:
+                delete_file(AIRCRAFT_UPLOAD_DEST_PATH + "/" + aircraft.photo_filename, silent=True)
+            update_data['photo_filename'] = await handle_img_upload(input.photo, AIRCRAFT_UPLOAD_DEST_PATH)
+
+        return await models.Aircraft.update(info.context.db, obj=aircraft, data=update_data)
 
 
 @strawberry.type
@@ -118,4 +98,4 @@ class DeleteAircraftMutation:
     async def delete_aircraft(self, info, id: int) -> Aircraft:
         # TODO: kontrola opravneni na akci
 
-        return await models.Aircraft.update(info.context.db, id, data=dict(deleted=True))
+        return await models.Aircraft.update(info.context.db, id=id, data=dict(deleted=True))

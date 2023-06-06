@@ -1,10 +1,14 @@
 from typing import List, Optional
 import strawberry
 from sqlalchemy import select
+from strawberry.file_uploads import Upload
+
 from database import models
 from graphql_schema.dataloaders import copilots_dataloader
 from graphql_schema.dataloaders.aircraft import aircraft_dataloader
+from graphql_schema.dataloaders.airport import airport_dataloader
 from graphql_schema.entities.aircraft import Aircraft
+from graphql_schema.entities.airport import Airport
 from graphql_schema.entities.copilot import CopilotType
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 
@@ -13,6 +17,11 @@ from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_t
 
 @strawberry_sqlalchemy_type(models.Flight)
 class Flight:
+    async def load_takeoff_airport(root):
+        return await airport_dataloader.load(root.takeoff_airport_id)
+
+    async def load_landing_airport(root):
+        return await airport_dataloader.load(root.landing_airport_id)
 
     async def load_aircraft(root):
         return await aircraft_dataloader.load(root.aircraft_id)
@@ -22,6 +31,17 @@ class Flight:
 
     copilot: Optional[CopilotType] = strawberry.field(resolver=load_copilot)
     aircraft: Aircraft = strawberry.field(resolver=load_aircraft)
+    takeoff_airport: Airport = strawberry.field(resolver=load_takeoff_airport)
+    landing_airport: Airport = strawberry.field(resolver=load_landing_airport)
+    # take_off_airport = Airport
+
+
+def get_base_query(user_id: int):
+    return (
+        select(models.Flight)
+        .filter(models.Flight.created_by_id == user_id)
+        .order_by(models.Flight.id.desc())
+    )
 
 
 @strawberry.type
@@ -32,36 +52,31 @@ class FlightQueries:
 
     @strawberry.field
     async def flights(root, info, filters: Optional[FlightFilters] = None) -> List[Flight]:
-        query = (
-            select(models.Flight)
-            .filter(models.Flight.created_by_id == info.context.user_id)
-            .order_by(models.Flight.id)  # TODO: desc
-        )
+        query = get_base_query(info.context.user_id).order_by(models.Flight.id.desc())
 
         return (await info.context.db.scalars(query)).all()
 
     @strawberry.field
     async def flight(root, info, id: int) -> Flight:
         query = (
-            select(models.Flight)
+            get_base_query(info.context.user_id)
             .filter(models.Flight.id == id)
-            .filter(models.Flight.created_by_id == info.context.user_id)
         )
         return (await info.context.db.scalars(query)).fetch_one()
 
 
 @strawberry.type
 class CreateFlightMutation:
-    @strawberry_sqlalchemy_input(models.Flight, all_optional=True)
-    class FlightInput:
+    @strawberry_sqlalchemy_input(models.Flight, exclude_fields=["id"])
+    class CreateFlightInput:
+        # photos: Optional[List[Upload]]
         pass
 
     @strawberry.mutation
-    async def create_flight(self, info, input_: FlightInput) -> Flight:
-        model = models.Flight(name=input_.name)
+    async def create_flight(self, info, input: CreateFlightInput) -> Flight:
+        input_data = input.to_dict()
 
-        db = info.context.db
-        db.add(model)
-        await db.commit()
-
-        return Flight(model)
+        return await models.Flight.create(info.context.db, data={
+            **input_data,
+            "created_by_id": info.context.user_id
+        })
