@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import List, Optional
 import strawberry
 from sqlalchemy import select
@@ -29,11 +30,21 @@ class Flight:
     async def load_copilot(root):
         return await copilots_dataloader.load(root.copilot_id)
 
+    def duration_min_calculated(root):
+        if root.duration_total:
+            return root.duration_total
+
+        if root.takeoff_datetime and root.landing_datetime:
+            diff: timedelta = root.landing_datetime - root.takeoff_datetime
+            return diff.seconds / 60
+
+        return 0
+
+    duration_min_calculated: int = strawberry.field(resolver=duration_min_calculated)
     copilot: Optional[CopilotType] = strawberry.field(resolver=load_copilot)
     aircraft: Aircraft = strawberry.field(resolver=load_aircraft)
     takeoff_airport: Airport = strawberry.field(resolver=load_takeoff_airport)
     landing_airport: Airport = strawberry.field(resolver=load_landing_airport)
-    # take_off_airport = Airport
 
 
 def get_base_query(user_id: int):
@@ -61,8 +72,9 @@ class FlightQueries:
         query = (
             get_base_query(info.context.user_id)
             .filter(models.Flight.id == id)
+            .filter(models.Flight.deleted.is_(False))
         )
-        return (await info.context.db.scalars(query)).fetch_one()
+        return (await info.context.db.scalars(query)).one()
 
 
 @strawberry.type
