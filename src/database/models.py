@@ -1,6 +1,6 @@
 from __future__ import annotations
 import datetime
-from typing import Set
+from typing import Set, List
 from sqlalchemy import String, DateTime, ForeignKey, Text, Integer, func, Table, Column, Boolean, select
 from sqlalchemy.orm import Mapped, relationship, as_declarative, mapped_column
 from database.custom_types import Point
@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 @as_declarative()
 class BaseModel:
+    # __mapper_args__ = {"eager_defaults": True}
+
     excluded_columns_in_dict = tuple()
 
     def as_dict(self):
@@ -26,7 +28,8 @@ class BaseModel:
     async def create(cls, db_session: AsyncSession, data: dict):
         model = cls(**data)
         db_session.add(model)
-        await db_session.commit()
+        # await db_session.flush()
+        # await db_session.refresh(model)
 
         return model
 
@@ -111,7 +114,7 @@ class Photo(BaseModel):
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
-    flight: Mapped['Flight'] = relationship(back_populates="photos")
+    flight: Mapped['Flight'] = relationship()
     created_by: Mapped['User'] = relationship()
 
 
@@ -202,7 +205,7 @@ class Flight(BaseModel):
     landing_airport: Mapped['Airport'] = relationship(foreign_keys=[landing_airport_id])
     copilot: Mapped['Copilot'] = relationship(back_populates="flights")
     aircraft: Mapped['Aircraft'] = relationship(back_populates="flights")
-    photos: Mapped[Set['Photo']] = relationship()
+    photos: Mapped[List['Photo']] = relationship()
     user: Mapped['User'] = relationship(back_populates="flights")
     created_by: Mapped['User'] = relationship()
 

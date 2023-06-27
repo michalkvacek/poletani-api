@@ -9,7 +9,7 @@ def check_directories(path: str):
         os.makedirs(path)
 
 
-async def handle_img_upload(file: Upload, path: str):
+async def handle_file_upload(file: Upload, path: str):
     check_directories(path)
 
     filename = f"{uuid.uuid4()}-{file.filename}"
@@ -18,6 +18,9 @@ async def handle_img_upload(file: Upload, path: str):
     image = open(path + "/" + filename, "wb")
     image.write(content)
     image.close()
+
+    return filename
+
 
 def delete_file(path: str, silent: bool = False):
     os.remove(path)

@@ -5,7 +5,7 @@ from strawberry.file_uploads import Upload
 from sqlalchemy import select
 from database import models
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
-from upload_utils import handle_img_upload, delete_file
+from upload_utils import handle_file_upload, delete_file
 
 AIRCRAFT_UPLOAD_DEST_PATH = "/app/uploads/aircrafts/"
 
@@ -52,13 +52,14 @@ class CreateAircraftMutation:
     class CreateAircraftInput:
         photo: Optional[Upload]
 
+
     @strawberry.mutation
     async def create_aircraft(root, info, input: CreateAircraftInput) -> Aircraft:
         # TODO: kontrola organizace
 
         input_data = input.to_dict()
         if input.photo:
-            input_data['photo_filename'] = await handle_img_upload(input.photo, AIRCRAFT_UPLOAD_DEST_PATH)
+            input_data['photo_filename'] = await handle_file_upload(input.photo, AIRCRAFT_UPLOAD_DEST_PATH)
 
         return await models.Aircraft.create(
             info.context.db,
@@ -86,7 +87,7 @@ class EditAircraftMutation:
         if input.photo:
             if aircraft.photo_filename:
                 delete_file(AIRCRAFT_UPLOAD_DEST_PATH + "/" + aircraft.photo_filename, silent=True)
-            update_data['photo_filename'] = await handle_img_upload(input.photo, AIRCRAFT_UPLOAD_DEST_PATH)
+            update_data['photo_filename'] = await handle_file_upload(input.photo, AIRCRAFT_UPLOAD_DEST_PATH)
 
         return await models.Aircraft.update(info.context.db, obj=aircraft, data=update_data)
 

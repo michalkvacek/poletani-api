@@ -12,6 +12,7 @@ from graphql_schema.entities.aircraft import Aircraft
 from graphql_schema.entities.airport import Airport
 from graphql_schema.entities.copilot import CopilotType
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
+from upload_utils import handle_file_upload
 
 
 # Bude se hodit: https://strawberry.rocks/docs/types/lazy
@@ -88,7 +89,37 @@ class CreateFlightMutation:
     async def create_flight(self, info, input: CreateFlightInput) -> Flight:
         input_data = input.to_dict()
 
-        return await models.Flight.create(info.context.db, data={
+        flight = await models.Flight.create(info.context.db, data={
             **input_data,
+            # "photos": [],  # aby se nedelal select pri vytvareni fotek
             "created_by_id": info.context.user_id
         })
+
+        await info.context.db.flush()
+        #
+        # if input.photos:
+        #     photos_dest = f"/app/uploads/photos/{flight.id}/"
+        #     for photo in input.photos:
+        #         filename = await handle_file_upload(photo, photos_dest)
+        #         flight.photos.append(models.Photo(**{
+        #             "name": "",
+        #             "filename": filename,
+        #             "description": "",
+        #             "created_by_id": info.context.user_id,
+        #         }))
+
+        return flight
+
+
+@strawberry.type
+class EditFlightMutation:
+
+    @strawberry_sqlalchemy_input(models.Flight, exclude_fields=["id"], all_optional=True)
+    class EditFlightInput:
+        pass
+
+    @strawberry.mutation
+    async def edit_flight(self, info, id: int, input: EditFlightInput) -> Flight:
+        input_data = input.to_dict()
+
+        return await models.Flight.update(info.context.db, id=id, data=input_data)

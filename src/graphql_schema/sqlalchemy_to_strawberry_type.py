@@ -18,7 +18,8 @@ def get_annotations_for_scalars(model: BaseModel, exclude_fields=None, force_opt
     for name, column in get_columns_from_model(model, exclude_fields):
         is_optional = column.nullable or force_optional
         try:
-            annotations_[name] = column.type.python_type if not is_optional else typing.Optional[column.type.python_type]
+            type_ = typing.Optional[column.type.python_type] if is_optional else column.type.python_type
+            annotations_[name] = type_
         except NotImplementedError as e:
             print(f"Neimplementovano: {e}, {name=}")
 
@@ -50,15 +51,29 @@ def strawberry_sqlalchemy_input(
     ignored_fields = exclude_fields + ["created_at", "created_by_id", "updated_by_id", "updated_at", "deleted"]
 
     def to_dict(self):
-        return {name: getattr(self, name) for name, _ in get_columns_from_model(model, ignored_fields)}
+        return {name: getattr(self, name) for name, _ in get_columns_from_model(model, ignored_fields) if getattr(self, name) is not None}
 
     def wrapper(cls):
-        cls.__annotations__.update(get_annotations_for_scalars(
+        annotations = get_annotations_for_scalars(
             model,
             exclude_fields=ignored_fields,
             force_optional=all_optional
-        ))
+        )
+
+        cls.__annotations__.update(annotations)
         cls.to_dict = to_dict
-        return strawberry.input(cls)
+
+        for col, col_type in annotations.items():
+            try:
+                print("AAAAAAAAAA", col_type)
+                if col_type._name == 'Optional':  # noqa
+                    setattr(cls, col, None)
+                    print("    nastavuji")
+            except AttributeError:
+                pass
+
+        input_cls = strawberry.input(cls)
+
+        return input_cls
 
     return wrapper
