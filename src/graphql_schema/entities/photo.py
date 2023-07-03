@@ -1,13 +1,16 @@
-from typing import List, Optional
+from typing import List
 import strawberry
 from sqlalchemy import select
+from strawberry.file_uploads import Upload
 from database import models
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
+from upload_utils import get_public_url, handle_file_upload
 
 
 @strawberry_sqlalchemy_type(models.Photo)
 class Photo:
-    pass
+    url: str = strawberry.field(resolver=lambda root: get_public_url(root.filename))
+    thumbnail_url: str = strawberry.field(resolver=lambda root: get_public_url(f"thumbs/{root.filename}"))
 
 
 def get_base_query(user_id: int):
@@ -27,18 +30,37 @@ class PhotoQueries:
 
 
 @strawberry.type
-class DeletePhotoMutation:
+class UploadPhotoMutation:
+    @strawberry_sqlalchemy_input(models.Photo, exclude_fields=["id", "filename"])
+    class UploadPhotoInput:
+        photo: Upload
 
-    @strawberry.input
-    class DeletePhotoInput:
-        id: int
+    @strawberry.mutation
+    async def upload_photo(self, info, input: UploadPhotoInput) -> Photo:
+        photos_dest = f"/app/uploads/photos/{input.flight_id}/"
+        filename = await handle_file_upload(input.photo, photos_dest)
 
+        # todo: udelat nahled do thumbs slozky
+
+        created_photo = await models.Photo.create(data={
+            "flight_id": input.flight_id,
+            "name": input.name,
+            "filename": filename,
+            "description": input.description,
+            "created_by_id": info.context.user_id,
+        }, db_session=info.context.db)
+
+        return created_photo
+
+
+@strawberry.type
+class EditPhotoMutation:
     @strawberry_sqlalchemy_input(models.Photo, exclude_fields=[], all_optional=True)
-    class UpdatePhotoInput:
+    class EditPhotoInput:
         pass
 
     @strawberry.mutation
-    async def update_photo(self, info, input: UpdatePhotoInput) -> Photo:
+    async def update_photo(self, info, input: EditPhotoInput) -> Photo:
         query = get_base_query(info.context.user_id)
         photo = info.context.db.scalars(query.filter(models.Photo.id == input.id))
 
@@ -46,6 +68,13 @@ class DeletePhotoMutation:
         photo.update(**update_data)
 
         return photo
+
+
+@strawberry.type
+class DeletePhotoMutation:
+    @strawberry.input
+    class DeletePhotoInput:
+        id: int
 
     @strawberry.mutation
     async def delete_photo(self, info, input: DeletePhotoInput) -> Photo:

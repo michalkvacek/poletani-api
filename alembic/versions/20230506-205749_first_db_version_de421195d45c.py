@@ -7,7 +7,6 @@ Create Date: 2023-05-06 20:57:49.053470
 """
 from alembic import op
 import sqlalchemy as sa
-import database.custom_types
 
 # revision identifiers, used by Alembic.
 revision = 'de421195d45c'
@@ -22,7 +21,7 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=128), nullable=False),
     sa.Column('icao_code', sa.String(length=4), nullable=False),
-    sa.Column('gps_position', database.custom_types.Point(), nullable=True),
+    sa.Column('gps_position', sa.Integer(), nullable=True),
     sa.Column('elevation', sa.Integer(), nullable=True),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),
     sa.PrimaryKeyConstraint('id')
@@ -94,7 +93,7 @@ def upgrade() -> None:
     op.create_table('point_of_interest',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=128), nullable=False),
-    sa.Column('gps_position', database.custom_types.Point(), nullable=True),
+    sa.Column('gps_position', sa.Integer(), nullable=True),
     sa.Column('type_id', sa.Integer(), nullable=False),
     sa.Column('is_public', sa.Boolean(), server_default='0', nullable=False),
     sa.Column('created_by_id', sa.Integer(), nullable=False),
@@ -155,7 +154,7 @@ def upgrade() -> None:
     sa.Column('name', sa.String(length=128), nullable=False),
     sa.Column('filename', sa.String(length=128), nullable=False),
     sa.Column('description', sa.Text(), nullable=False),
-    sa.Column('gps_position', database.custom_types.Point(), nullable=True),
+    sa.Column('gps_position', sa.Integer(), nullable=True),
     sa.Column('flight_id', sa.Integer(), nullable=False),
     sa.Column('created_by_id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=False),

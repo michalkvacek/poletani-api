@@ -51,7 +51,11 @@ def strawberry_sqlalchemy_input(
     ignored_fields = exclude_fields + ["created_at", "created_by_id", "updated_by_id", "updated_at", "deleted"]
 
     def to_dict(self):
-        return {name: getattr(self, name) for name, _ in get_columns_from_model(model, ignored_fields) if getattr(self, name) is not None}
+        return {
+            name: getattr(self, name)
+            for name, _ in get_columns_from_model(model, ignored_fields)
+            if getattr(self, name) is not None
+        }
 
     def wrapper(cls):
         annotations = get_annotations_for_scalars(
@@ -65,10 +69,8 @@ def strawberry_sqlalchemy_input(
 
         for col, col_type in annotations.items():
             try:
-                print("AAAAAAAAAA", col_type)
                 if col_type._name == 'Optional':  # noqa
                     setattr(cls, col, None)
-                    print("    nastavuji")
             except AttributeError:
                 pass
 

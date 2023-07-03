@@ -1,20 +1,17 @@
-import uuid
 from typing import List, Optional
 import strawberry
 from strawberry.file_uploads import Upload
 from sqlalchemy import select
 from database import models
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
-from upload_utils import handle_file_upload, delete_file
+from upload_utils import handle_file_upload, delete_file, get_public_url
 
 AIRCRAFT_UPLOAD_DEST_PATH = "/app/uploads/aircrafts/"
 
 
 @strawberry_sqlalchemy_type(models.Aircraft)
 class Aircraft:
-    photo_url: Optional[str] = strawberry.field(
-        resolver=lambda root: f"http://localhost:8000/uploads/{root.photo_filename}" if root.photo_filename else None
-    )
+    photo_url: Optional[str] = strawberry.field(resolver=lambda root: get_public_url(root.photo_filename))
 
 
 def get_base_query(user_id: int):
@@ -51,7 +48,6 @@ class CreateAircraftMutation:
     @strawberry_sqlalchemy_input(models.Aircraft, exclude_fields=['id', 'photo_filename'])
     class CreateAircraftInput:
         photo: Optional[Upload]
-
 
     @strawberry.mutation
     async def create_aircraft(root, info, input: CreateAircraftInput) -> Aircraft:

@@ -2,20 +2,20 @@ from datetime import timedelta
 from typing import List, Optional
 import strawberry
 from sqlalchemy import select
-from strawberry.file_uploads import Upload
-
 from database import models
 from graphql_schema.dataloaders import copilots_dataloader
 from graphql_schema.dataloaders.aircraft import aircraft_dataloader
 from graphql_schema.dataloaders.airport import airport_dataloader
+from graphql_schema.dataloaders.photos import photos_dataloader, cover_photo_loader
 from graphql_schema.entities.aircraft import Aircraft
 from graphql_schema.entities.airport import Airport
 from graphql_schema.entities.copilot import CopilotType
+from graphql_schema.entities.photo import Photo
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
-from upload_utils import handle_file_upload
 
 
 # Bude se hodit: https://strawberry.rocks/docs/types/lazy
+
 
 @strawberry_sqlalchemy_type(models.Flight)
 class Flight:
@@ -30,6 +30,12 @@ class Flight:
 
     async def load_copilot(root):
         return await copilots_dataloader.load(root.copilot_id)
+
+    async def load_photos(root):
+        return await photos_dataloader.load(root.id)
+
+    async def load_cover_photo(root):
+        return await cover_photo_loader.load(root.id)
 
     def duration_min_calculated(root):
         if root.duration_total:
@@ -46,6 +52,9 @@ class Flight:
     aircraft: Aircraft = strawberry.field(resolver=load_aircraft)
     takeoff_airport: Airport = strawberry.field(resolver=load_takeoff_airport)
     landing_airport: Airport = strawberry.field(resolver=load_landing_airport)
+    cover_photo: Optional[Photo] = strawberry.field(resolver=load_cover_photo)
+
+    photos: List[Photo] = strawberry.field(resolver=load_photos)
 
 
 def get_base_query(user_id: int):
@@ -113,7 +122,6 @@ class CreateFlightMutation:
 
 @strawberry.type
 class EditFlightMutation:
-
     @strawberry_sqlalchemy_input(models.Flight, exclude_fields=["id"], all_optional=True)
     class EditFlightInput:
         pass

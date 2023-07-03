@@ -8,7 +8,6 @@ from strawberry.fastapi import GraphQLRouter
 from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG
 from dependencies.db import db_session
 from endpoints.init_data import InitDataEndpoint
-from endpoints.flights import FlightsEndpoint
 from endpoints.login import LoginEndpoint, LoginInput, MeEndpoint
 from endpoints.registration import RegistrationInput, RegistrationEndpoint
 from graphql_schema.schema import schema, GraphQLContext
@@ -118,10 +117,6 @@ class App:
         @self.api_router.get("/init-data")
         async def init_data(db: AsyncSession = Depends(db_session)):
             return await InitDataEndpoint(db).on_get()
-
-        @self.api_router.get("/flights", status_code=200)
-        async def flights(db: AsyncSession = Depends(db_session)):
-            return await FlightsEndpoint(db).resolve()
 
         # musi byt na konci
         app.include_router(self.api_router)

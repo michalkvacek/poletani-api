@@ -1,9 +1,8 @@
 from __future__ import annotations
 import datetime
 from typing import Set, List
-from sqlalchemy import String, DateTime, ForeignKey, Text, Integer, func, Table, Column, Boolean, select
+from sqlalchemy import String, DateTime, ForeignKey, Text, Integer, func, Table, Column, Boolean, select, Float
 from sqlalchemy.orm import Mapped, relationship, as_declarative, mapped_column
-from database.custom_types import Point
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -65,7 +64,8 @@ class Airport(BaseModel):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     icao_code: Mapped[str] = mapped_column(String(4), nullable=False)
-    gps_position: Mapped[Point] = mapped_column(Point, nullable=True)
+    gps_latitude: Mapped[float] = mapped_column(Float, nullable=True)
+    gps_longitude: Mapped[float] = mapped_column(Float, nullable=True)
     elevation: Mapped[int] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
@@ -91,7 +91,8 @@ class PointOfInterest(BaseModel):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    gps_position: Mapped[Point] = mapped_column(Point, nullable=True)
+    gps_latitude: Mapped[float] = mapped_column(Float, nullable=True)
+    gps_longitude: Mapped[float] = mapped_column(Float, nullable=True)
     type_id: Mapped[int] = mapped_column(Integer, ForeignKey("point_of_interest_type.id"))
     is_public: Mapped[bool] = mapped_column(Boolean, server_default='0')
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
@@ -108,13 +109,17 @@ class Photo(BaseModel):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     filename: Mapped[str] = mapped_column(String(128), nullable=False)
+    is_flight_cover: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    gps_position: Mapped[Point] = mapped_column(Point, nullable=True)
+    gps_latitude: Mapped[float] = mapped_column(Float, nullable=True)
+    gps_longitude: Mapped[float] = mapped_column(Float, nullable=True)
+    point_of_interest_id: Mapped[int] = mapped_column(Integer, ForeignKey("point_of_interest.id"), nullable=True)
     flight_id: Mapped[int] = mapped_column(Integer, ForeignKey("flight.id"), nullable=False)
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
-    flight: Mapped['Flight'] = relationship()
+    flight: Mapped['Flight'] = relationship(foreign_keys=[flight_id])
+    point_of_interest: Mapped['PointOfInterest'] = relationship()
     created_by: Mapped['User'] = relationship()
 
 
@@ -122,13 +127,13 @@ class Aircraft(BaseModel):
     __tablename__ = "aircraft"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    call_sign: Mapped[str] = mapped_column(String(16), nullable=False)
     photo_filename: Mapped[str] = mapped_column(String(128), nullable=True)
     manufacturer: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
-    model: Mapped[str] = mapped_column(String(30), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
+    model: Mapped[str] = mapped_column(String(30), nullable=False, server_default="")
+    description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     organization_id: Mapped[int] = mapped_column(Integer, ForeignKey('organization.id'), nullable=True)
-    created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
+    created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
 
@@ -171,7 +176,7 @@ class FlightTrack(BaseModel):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     flight_id: Mapped[int] = mapped_column(Integer, ForeignKey("flight.id"), nullable=False)
-    poi_id: Mapped[int] = mapped_column(Integer, ForeignKey("point_of_interest.id"), nullable=False)
+    point_of_interest_id: Mapped[int] = mapped_column(Integer, ForeignKey("point_of_interest.id"), nullable=False)
     order: Mapped[int] = mapped_column(Integer)
 
     flight: Mapped['Flight'] = relationship()
@@ -205,7 +210,7 @@ class Flight(BaseModel):
     landing_airport: Mapped['Airport'] = relationship(foreign_keys=[landing_airport_id])
     copilot: Mapped['Copilot'] = relationship(back_populates="flights")
     aircraft: Mapped['Aircraft'] = relationship(back_populates="flights")
-    photos: Mapped[List['Photo']] = relationship()
+    photos: Mapped[List['Photo']] = relationship(foreign_keys=[Photo.flight_id])
     user: Mapped['User'] = relationship(back_populates="flights")
     created_by: Mapped['User'] = relationship()
 
