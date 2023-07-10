@@ -4,13 +4,17 @@ from sqlalchemy import select
 from strawberry.file_uploads import Upload
 from database import models
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
-from upload_utils import get_public_url, handle_file_upload
+from upload_utils import get_public_url, handle_file_upload, delete_file
 
 
 @strawberry_sqlalchemy_type(models.Photo)
 class Photo:
-    url: str = strawberry.field(resolver=lambda root: get_public_url(root.filename))
-    thumbnail_url: str = strawberry.field(resolver=lambda root: get_public_url(f"thumbs/{root.filename}"))
+    url: str = strawberry.field(
+        resolver=lambda root: get_public_url(f"photos/{root.flight_id}/{root.filename}")
+    )
+    thumbnail_url: str = strawberry.field(
+        resolver=lambda root: get_public_url(f"photos/{root.flight_id}/{root.filename}")  # TODO: doplnit thumb!
+    )
 
 
 def get_base_query(user_id: int):
@@ -19,6 +23,10 @@ def get_base_query(user_id: int):
         .filter(models.Photo.created_by_id == user_id)
         .order_by(models.Photo.id.desc())
     )
+
+
+def get_photo_basepath(flight_id: int) -> str:
+    return f"/app/uploads/photos/{flight_id}"
 
 
 @strawberry.type
@@ -37,8 +45,7 @@ class UploadPhotoMutation:
 
     @strawberry.mutation
     async def upload_photo(self, info, input: UploadPhotoInput) -> Photo:
-        photos_dest = f"/app/uploads/photos/{input.flight_id}/"
-        filename = await handle_file_upload(input.photo, photos_dest)
+        filename = await handle_file_upload(input.photo, get_photo_basepath(input.flight_id))
 
         # todo: udelat nahled do thumbs slozky
 
@@ -55,27 +62,32 @@ class UploadPhotoMutation:
 
 @strawberry.type
 class EditPhotoMutation:
-    @strawberry_sqlalchemy_input(models.Photo, exclude_fields=[], all_optional=True)
+    @strawberry_sqlalchemy_input(models.Photo, exclude_fields=["id"], all_optional=True)
     class EditPhotoInput:
         pass
 
     @strawberry.mutation
-    async def update_photo(self, info, input: EditPhotoInput) -> Photo:
+    async def edit_photo(self, info, id: int, input: EditPhotoInput) -> Photo:
         query = get_base_query(info.context.user_id)
-        photo = info.context.db.scalars(query.filter(models.Photo.id == input.id))
+        photo = (await info.context.db.scalars(query.filter(models.Photo.id == id))).one()
 
-        update_data = input.to_dict()
-        photo.update(**update_data)
-
-        return photo
+        return await models.Photo.update(info.context.db, obj=photo, data=input.to_dict())
 
 
 @strawberry.type
 class DeletePhotoMutation:
-    @strawberry.input
-    class DeletePhotoInput:
-        id: int
-
     @strawberry.mutation
-    async def delete_photo(self, info, input: DeletePhotoInput) -> Photo:
-        pass
+    async def delete_photo(self, info, id: int) -> Photo:
+        query = get_base_query(info.context.user_id)
+        photo = (await info.context.db.scalars(query.filter(models.Photo.id == id))).one()
+
+        base_path = get_photo_basepath(photo.flight_id)
+        try:
+            delete_file(f"{base_path}/{photo.filename}")
+            # TODO: odstranit nahledy
+        except Exception as e:
+            print("ERROR", e)
+
+        await info.context.db.delete(photo)
+
+        return photo

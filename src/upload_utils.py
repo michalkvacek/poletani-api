@@ -1,12 +1,11 @@
 import os
 import uuid
 from typing import Optional
-
 from strawberry.file_uploads import Upload
 
 
 def get_public_url(filename: Optional[str]):
-    return f"http://localhost:8000/uploads/{filename}" if filename else None
+    return f"http://localhost:8999/{filename}" if filename else None
 
 
 def check_directories(path: str):

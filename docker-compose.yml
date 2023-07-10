@@ -17,5 +17,14 @@ services:
       - 8000:8000
     volumes:
       - .:/app
+
+  nginx:
+    image: nginx:alpine
+    restart: always
+    volumes:
+      - ./config/nginx.dev.yml:/etc/nginx/conf.d/app-dev.conf
+      - ./uploads:/app/uploads
+    ports:
+      - "8999:8999"
 volumes:
   db-data: { }

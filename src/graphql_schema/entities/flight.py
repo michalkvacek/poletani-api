@@ -128,6 +128,4 @@ class EditFlightMutation:
 
     @strawberry.mutation
     async def edit_flight(self, info, id: int, input: EditFlightInput) -> Flight:
-        input_data = input.to_dict()
-
-        return await models.Flight.update(info.context.db, id=id, data=input_data)
+        return await models.Flight.update(info.context.db, id=id, data=input.to_dict())

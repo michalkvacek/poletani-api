@@ -1,0 +1,7 @@
+server {
+    listen 8999;
+    listen [::]:8999;
+
+    root /app/uploads;
+    gzip_static on;
+}
