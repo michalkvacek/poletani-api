@@ -43,7 +43,7 @@ class BaseModel:
             if getattr(obj, key) != value:
                 setattr(obj, key, value)
 
-        await db_session.commit()
+        # await db_session.commit()
 
         return obj
 
@@ -93,7 +93,7 @@ class PointOfInterest(BaseModel):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     gps_latitude: Mapped[float] = mapped_column(Float, nullable=True)
     gps_longitude: Mapped[float] = mapped_column(Float, nullable=True)
-    type_id: Mapped[int] = mapped_column(Integer, ForeignKey("point_of_interest_type.id"))
+    type_id: Mapped[int] = mapped_column(Integer, ForeignKey("point_of_interest_type.id"), nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, server_default='0')
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
@@ -208,6 +208,7 @@ class Flight(BaseModel):
 
     takeoff_airport: Mapped['Airport'] = relationship(foreign_keys=[takeoff_airport_id])
     landing_airport: Mapped['Airport'] = relationship(foreign_keys=[landing_airport_id])
+    track: Mapped['FlightTrack'] = relationship()
     copilot: Mapped['Copilot'] = relationship(back_populates="flights")
     aircraft: Mapped['Aircraft'] = relationship(back_populates="flights")
     photos: Mapped[List['Photo']] = relationship(foreign_keys=[Photo.flight_id])

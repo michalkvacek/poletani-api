@@ -13,4 +13,4 @@ async def load(ids: List[int]):
         return [models_by_id.get(id_) for id_ in ids]
 
 
-airport_dataloader = DataLoader(load_fn=load)
+airport_dataloader = DataLoader(load_fn=load, cache=False)

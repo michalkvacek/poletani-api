@@ -31,4 +31,4 @@ async def load(ids: List[int]):
 
 photos_dataloader = DataLoader(load_fn=load_collection, cache=False)
 
-cover_photo_loader = DataLoader(load_fn=load)
+cover_photo_loader = DataLoader(load_fn=load, cache=False)

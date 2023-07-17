@@ -1,26 +1,52 @@
 from datetime import timedelta
 from typing import List, Optional
 import strawberry
-from sqlalchemy import select
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
 from database import models
 from graphql_schema.dataloaders import copilots_dataloader
 from graphql_schema.dataloaders.aircraft import aircraft_dataloader
 from graphql_schema.dataloaders.airport import airport_dataloader
 from graphql_schema.dataloaders.photos import photos_dataloader, cover_photo_loader
+from graphql_schema.dataloaders.poi import flight_track_dataloader, poi_dataloader
 from graphql_schema.entities.aircraft import Aircraft
 from graphql_schema.entities.airport import Airport
 from graphql_schema.entities.copilot import CopilotType
 from graphql_schema.entities.photo import Photo
+from graphql_schema.entities.poi import PointOfInterest
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 
 
 # Bude se hodit: https://strawberry.rocks/docs/types/lazy
 
 
+@strawberry.input()
+class PointOfInterestInput:
+    id: Optional[int] = None
+    name: str
+
+
+@strawberry.input()
+class CopilotInput:
+    id: Optional[int] = None
+    name: str
+
+
+@strawberry_sqlalchemy_type(models.FlightTrack)
+class FlightTrack:
+    async def load_poi(root):
+        return await poi_dataloader.load(root.point_of_interest_id)
+
+    point_of_interest: PointOfInterest = strawberry.field(resolver=load_poi)
+
+
 @strawberry_sqlalchemy_type(models.Flight)
 class Flight:
     async def load_takeoff_airport(root):
         return await airport_dataloader.load(root.takeoff_airport_id)
+
+    async def load_track(root):
+        return await flight_track_dataloader.load(root.id)
 
     async def load_landing_airport(root):
         return await airport_dataloader.load(root.landing_airport_id)
@@ -53,6 +79,7 @@ class Flight:
     takeoff_airport: Airport = strawberry.field(resolver=load_takeoff_airport)
     landing_airport: Airport = strawberry.field(resolver=load_landing_airport)
     cover_photo: Optional[Photo] = strawberry.field(resolver=load_cover_photo)
+    track: List[FlightTrack] = strawberry.field(resolver=load_track)
 
     photos: List[Photo] = strawberry.field(resolver=load_photos)
 
@@ -91,41 +118,79 @@ class FlightQueries:
 class CreateFlightMutation:
     @strawberry_sqlalchemy_input(models.Flight, exclude_fields=["id"])
     class CreateFlightInput:
-        # photos: Optional[List[Upload]]
         pass
 
     @strawberry.mutation
     async def create_flight(self, info, input: CreateFlightInput) -> Flight:
-        input_data = input.to_dict()
-
-        flight = await models.Flight.create(info.context.db, data={
-            **input_data,
-            # "photos": [],  # aby se nedelal select pri vytvareni fotek
+        return await models.Flight.create(info.context.db, data={
+            **input.to_dict(),
             "created_by_id": info.context.user_id
         })
 
-        await info.context.db.flush()
-        #
-        # if input.photos:
-        #     photos_dest = f"/app/uploads/photos/{flight.id}/"
-        #     for photo in input.photos:
-        #         filename = await handle_file_upload(photo, photos_dest)
-        #         flight.photos.append(models.Photo(**{
-        #             "name": "",
-        #             "filename": filename,
-        #             "description": "",
-        #             "created_by_id": info.context.user_id,
-        #         }))
 
-        return flight
+async def handle_track_edit(db: AsyncSession, flight: models.Flight, track: List[PointOfInterestInput], user_id: int):
+    await db.execute(delete(models.FlightTrack).filter(models.FlightTrack.flight_id == flight.id))
+
+    existing_poi_ids = [i.id for i in track if i.id]
+    poi_query = (
+        select(models.PointOfInterest)
+        .filter(models.PointOfInterest.created_by_id == user_id)
+        .filter(models.PointOfInterest.id.in_(existing_poi_ids))
+    )
+    pois = (await db.scalars(poi_query)).all()
+    poi_map = {poi.id: poi for poi in pois}
+
+    order = 0
+    for item in track:
+        poi_object = None
+        if item.id:
+            poi_object = poi_map.get(item.id)
+
+        if not poi_object:
+            poi_object = await models.PointOfInterest.create(db, data=dict(created_by_id=user_id, name=item.name))
+            await db.flush()
+
+        await models.FlightTrack.create(
+            db,
+            data={
+                "flight_id": flight.id,
+                "point_of_interest_id": poi_object.id,
+                "order": order
+            }
+        )
+        order += 1
+
+
+def handle_copilot_edit():
+    pass
 
 
 @strawberry.type
 class EditFlightMutation:
-    @strawberry_sqlalchemy_input(models.Flight, exclude_fields=["id"], all_optional=True)
+    @strawberry_sqlalchemy_input(models.Flight, exclude_fields=["id", "copilot_id"], all_optional=True)
     class EditFlightInput:
-        pass
+        track: Optional[List[PointOfInterestInput]] = None
+        copilot: Optional[CopilotInput] = None
 
     @strawberry.mutation
     async def edit_flight(self, info, id: int, input: EditFlightInput) -> Flight:
-        return await models.Flight.update(info.context.db, id=id, data=input.to_dict())
+        flight = await models.Flight.update(info.context.db, id=id, data=input.to_dict())
+
+        if input.track is not None:
+            await handle_track_edit(db=info.context.db, flight=flight, track=input.track, user_id=info.context.user_id)
+
+        if input.copilot is not None and not flight.solo:
+            if input.copilot.id:
+                flight.copilot_id = input.copilot.id
+            else:
+                copilot = await models.Copilot.create(
+                    info.context.db,
+                    data={
+                        "created_by_id": info.context.user_id,
+                        "name": input.copilot.name
+                    }
+                )
+                info.context.db.flush()
+                flight.copilot_id = copilot.id
+
+        return flight
