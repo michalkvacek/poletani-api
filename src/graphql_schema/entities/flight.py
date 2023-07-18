@@ -161,8 +161,19 @@ async def handle_track_edit(db: AsyncSession, flight: models.Flight, track: List
         order += 1
 
 
-def handle_copilot_edit():
-    pass
+async def handle_copilot_edit(db: AsyncSession, copilot: CopilotInput, user_id: int) -> int:
+    if copilot.id:
+        return copilot.id
+    else:
+        copilot = await models.Copilot.create(
+            db,
+            data={
+                "name": copilot.name,
+                "created_by_id": user_id,
+            }
+        )
+        await db.flush()
+        return copilot.id
 
 
 @strawberry.type
@@ -179,18 +190,9 @@ class EditFlightMutation:
         if input.track is not None:
             await handle_track_edit(db=info.context.db, flight=flight, track=input.track, user_id=info.context.user_id)
 
-        if input.copilot is not None and not flight.solo:
-            if input.copilot.id:
-                flight.copilot_id = input.copilot.id
-            else:
-                copilot = await models.Copilot.create(
-                    info.context.db,
-                    data={
-                        "created_by_id": info.context.user_id,
-                        "name": input.copilot.name
-                    }
-                )
-                info.context.db.flush()
-                flight.copilot_id = copilot.id
+        if flight.solo:
+            flight.copilot_id = None
+        elif input.copilot is not None:
+            flight.copilot_id = await handle_copilot_edit(info.context.db, input.copilot, info.context.user_id)
 
         return flight

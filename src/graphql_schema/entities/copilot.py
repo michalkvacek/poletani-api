@@ -13,5 +13,5 @@ class CopilotType:
 @strawberry.type
 class CopilotQueries:
     @strawberry.field
-    async def pilots(root, info) -> List[CopilotType]:
-        return (await info.context['db'].scalars(select(Copilot))).all()
+    async def copilots(root, info) -> List[CopilotType]:
+        return (await info.context.db.scalars(select(Copilot))).all()

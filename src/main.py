@@ -1,9 +1,10 @@
 from datetime import timedelta
-from fastapi import FastAPI, APIRouter, Depends, Security
+from fastapi import FastAPI, APIRouter, Depends, Security, HTTPException
 from fastapi_jwt import JwtAuthorizationCredentials, JwtAccessBearerCookie, JwtRefreshBearerCookie
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse, Response
+from starlette.status import HTTP_401_UNAUTHORIZED
 from strawberry.fastapi import GraphQLRouter
 from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG
 from dependencies.db import db_session
@@ -63,6 +64,8 @@ class App:
                 credentials: JwtAuthorizationCredentials = Security(self.access_security),
                 db: AsyncSession = Depends(db_session),
         ):
+            if not credentials:
+                raise HTTPException(status_code=HTTP_401_UNAUTHORIZED)
 
             return GraphQLContext(
                 jwt_auth_credentials=credentials,
