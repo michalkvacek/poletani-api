@@ -11,7 +11,9 @@ AIRCRAFT_UPLOAD_DEST_PATH = "/app/uploads/aircrafts/"
 
 @strawberry_sqlalchemy_type(models.Aircraft)
 class Aircraft:
-    photo_url: Optional[str] = strawberry.field(resolver=lambda root: get_public_url(root.photo_filename))
+    photo_url: Optional[str] = strawberry.field(
+        resolver=lambda root: get_public_url(f"aircrafts/{root.photo_filename}") if root.photo_filename else None
+    )
 
 
 def get_base_query(user_id: int):

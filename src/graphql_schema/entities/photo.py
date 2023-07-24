@@ -1,6 +1,6 @@
 from typing import List
 import strawberry
-from sqlalchemy import select
+from sqlalchemy import select, update
 from strawberry.file_uploads import Upload
 from database import models
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
@@ -49,11 +49,13 @@ class UploadPhotoMutation:
 
         # todo: udelat nahled do thumbs slozky
 
+        is_flight_cover = False  # TODO: pokud k letu neexistuje zadna fotka, vybrat nahodne jednu a tu nastavit jako cover
         created_photo = await models.Photo.create(data={
             "flight_id": input.flight_id,
             "name": input.name,
             "filename": filename,
             "description": input.description,
+            "is_flight_cover": is_flight_cover,
             "created_by_id": info.context.user_id,
         }, db_session=info.context.db)
 
@@ -71,7 +73,18 @@ class EditPhotoMutation:
         query = get_base_query(info.context.user_id)
         photo = (await info.context.db.scalars(query.filter(models.Photo.id == id))).one()
 
-        return await models.Photo.update(info.context.db, obj=photo, data=input.to_dict())
+        updated_model = await models.Photo.update(info.context.db, obj=photo, data=input.to_dict())
+
+        if input.is_flight_cover:
+            # reset other covers
+            (await info.context.db.execute(
+                update(models.Photo)
+                .filter(models.Photo.flight_id == photo.flight_id)
+                .filter(models.Photo.id != id).values(is_flight_cover=False))
+
+             )
+
+        return updated_model
 
 
 @strawberry.type

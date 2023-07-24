@@ -99,6 +99,7 @@ class PointOfInterest(BaseModel):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
 
+    photos: Mapped[List[Photo]] = relationship()
     type: Mapped[PointOfInterestType] = relationship()
     created_by: Mapped['User'] = relationship()
 

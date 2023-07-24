@@ -88,6 +88,7 @@ def get_base_query(user_id: int):
     return (
         select(models.Flight)
         .filter(models.Flight.created_by_id == user_id)
+        .filter(models.Flight.deleted.is_(False))
         .order_by(models.Flight.id.desc())
     )
 
@@ -178,7 +179,7 @@ async def handle_copilot_edit(db: AsyncSession, copilot: CopilotInput, user_id: 
 
 @strawberry.type
 class EditFlightMutation:
-    @strawberry_sqlalchemy_input(models.Flight, exclude_fields=["id", "copilot_id"], all_optional=True)
+    @strawberry_sqlalchemy_input(models.Flight, exclude_fields=["id", "copilot_id", "deleted"], all_optional=True)
     class EditFlightInput:
         track: Optional[List[PointOfInterestInput]] = None
         copilot: Optional[CopilotInput] = None
@@ -194,5 +195,21 @@ class EditFlightMutation:
             flight.copilot_id = None
         elif input.copilot is not None:
             flight.copilot_id = await handle_copilot_edit(info.context.db, input.copilot, info.context.user_id)
+
+        return flight
+
+@strawberry.type
+class DeleteFlightMutation:
+
+    @strawberry.mutation
+    async def delete_flight(self, info, id: int) -> Flight:
+        flight = (
+            (await info.context.db.scalars(
+                get_base_query(info.context.user_id)
+                .filter(models.Flight.id == id))
+             )
+            .one()
+        )
+        flight.deleted = True
 
         return flight
