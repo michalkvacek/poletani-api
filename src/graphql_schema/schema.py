@@ -1,7 +1,7 @@
 import dataclasses
 import strawberry
 from fastapi_jwt import JwtAuthorizationCredentials
-from fastapi_jwt.jwt import JwtAccessBearerCookie
+from fastapi_jwt.jwt import JwtAccessBearer, JwtAccessBearerCookie
 from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.extensions import SchemaExtension
 from strawberry.fastapi import BaseContext

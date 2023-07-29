@@ -39,7 +39,7 @@ class PhotoQueries:
 
 @strawberry.type
 class UploadPhotoMutation:
-    @strawberry_sqlalchemy_input(models.Photo, exclude_fields=["id", "filename"])
+    @strawberry_sqlalchemy_input(models.Photo, exclude_fields=["id", "filename", "is_flight_cover"])
     class UploadPhotoInput:
         photo: Upload
 
@@ -58,6 +58,8 @@ class UploadPhotoMutation:
             "is_flight_cover": is_flight_cover,
             "created_by_id": info.context.user_id,
         }, db_session=info.context.db)
+
+        await info.context.db.flush()
 
         return created_photo
 

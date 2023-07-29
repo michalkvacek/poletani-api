@@ -6,3 +6,4 @@ async def db_session():
         async with session.begin():
             yield session
             await session.commit()
+            await session.flush()

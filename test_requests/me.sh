@@ -1,0 +1,11 @@
+TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWJqZWN0Ijp7ImlkIjoxOCwiZW1haWwiOiIifSwidHlwZSI6ImFjY2VzcyIsImV4cCI6MTY5MzEzODU5MCwiaWF0IjoxNjkwNTQ2NTkwLCJqdGkiOiIwMjg3YjAzMy1jZGE3LTQ3MDItOGVmYi1kYTI4M2FlYzhlNGMifQ.89sQRRbGj5z0XEzQgdONrTFiGrNYtWf52oiHXGyEmUE"
+
+http POST localhost:8000/login email="" password=""
+
+#http GET http://localhost:8000/me "authorization: Bearer $TOKEN"
+
+
+#http POST http://localhost:8000/me "authorization: Bearer $TOKEN"
+
+REFRESH_TOKEN="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWJqZWN0Ijp7ImlkIjoxOCwiZW1haWwiOiIifSwidHlwZSI6InJlZnJlc2giLCJleHAiOjE2OTA3MTk4MzMsImlhdCI6MTY5MDU0NzAzMywianRpIjoiMjVmMDIxYWEtNzZmOC00YjNlLWIxMmMtYzIyNjZiNTk5YzE5In0.k6XkzWx2BaeJw3dAfGdA9Qy0pkCO5gWAvKgO_0lrYwU"
+http POST http://localhost:8000/refresh "Authorization: Bearer $REFRESH_TOKEN"

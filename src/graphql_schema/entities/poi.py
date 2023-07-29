@@ -82,7 +82,11 @@ class EditPointOfInterestMutation:
         # TODO: kontrola organizace
         # TODO: kontrola opravneni na akci
 
-        poi = (await get_base_query(info.context.user_id, only_my=True).filter(models.Photo.id == id)).one()
+        poi = (
+            await info.context.db.scalars(
+                get_base_query(info.context.user_id, only_my=True)
+                .filter(models.PointOfInterest.id == id))
+        ).one()
         return await models.PointOfInterest.update(info.context.db, obj=poi, data=input.to_dict())
 
 
@@ -91,6 +95,6 @@ class DeletePointOfInterestMutation:
 
     @strawberry.mutation
     async def delete_point_of_interest(self, info, id: int) -> PointOfInterest:
-        poi = (await get_base_query(info.context.user_id, only_my=True).filter(models.Photo.id == id)).one()
+        poi = (await get_base_query(info.context.user_id, only_my=True).filter(models.PointOfInterest.id == id)).one()
 
         return await models.PointOfInterest.update(info.context.db, obj=poi, data=dict(deleted=True))

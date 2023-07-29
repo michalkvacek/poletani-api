@@ -36,24 +36,52 @@ class LoginEndpoint(BaseEndpoint):
         access_token = self.access_security.create_access_token(subject=subject)
         refresh_token = self.refresh_security.create_refresh_token(subject=subject)
 
-        self.access_security.set_access_cookie(resp, access_token)
-        self.refresh_security.set_refresh_cookie(resp, refresh_token)
+        # self.access_security.set_access_cookie(resp, access_token)
+        self.refresh_security.set_refresh_cookie(
+            resp, refresh_token,
+            expires_delta=self.refresh_security.refresh_expires_delta
+        )
 
         return {
             "user": logged_user.as_dict(),
             "access_token": access_token,
-            "refresh_token": refresh_token
+            "access_token_validity": self.access_security.access_expires_delta.total_seconds(),
+        }
+
+class RefreshEndpoint(BaseEndpoint):
+    def __init__(self, access_token: JwtAccess, refresh_token: JwtRefresh):
+        super().__init__(db=None)
+        self.access_security = access_token
+        self.refresh_security = refresh_token
+
+    async def on_post(self, resp: Response, credentials: JwtAuthorizationCredentials):
+        access_token = self.access_security.create_access_token(
+            subject=credentials.subject,
+            expires_delta=self.access_security.access_expires_delta
+        )
+        refresh_token = self.refresh_security.create_refresh_token(
+            subject=credentials.subject,
+            expires_delta=self.refresh_security.refresh_expires_delta
+        )
+
+        self.refresh_security.set_refresh_cookie(
+            resp, refresh_token,
+            expires_delta=self.refresh_security.refresh_expires_delta
+        )
+
+        return {
+            "access_token": access_token,
+            "access_token_validity": self.access_security.access_expires_delta.total_seconds(),
         }
 
 
 class MeEndpoint(BaseEndpoint):
 
-    def __init__(self, db, credentials: JwtAuthorizationCredentials):
-        super().__init__(db)
-        self.credentials = credentials
+    async def on_get(self, credentials) -> dict:
+        if not credentials:
+            raise HTTPException(status_code=401)
 
-    async def on_get(self) -> dict:
-        query = select(User).filter_by(id=self.credentials['id'])
+        query = select(User).filter_by(id=credentials['id'])
         user = (await self.db.scalars(query)).first()
 
         return user.as_dict()

@@ -1,6 +1,6 @@
 from datetime import timedelta
 from fastapi import FastAPI, APIRouter, Depends, Security, HTTPException
-from fastapi_jwt import JwtAuthorizationCredentials, JwtAccessBearerCookie, JwtRefreshBearerCookie
+from fastapi_jwt import JwtAuthorizationCredentials, JwtRefreshBearer, JwtAccessBearerCookie, JwtRefreshBearerCookie
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse, Response
@@ -9,7 +9,7 @@ from strawberry.fastapi import GraphQLRouter
 from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG
 from dependencies.db import db_session
 from endpoints.init_data import InitDataEndpoint
-from endpoints.login import LoginEndpoint, LoginInput, MeEndpoint
+from endpoints.login import LoginEndpoint, LoginInput, MeEndpoint, RefreshEndpoint
 from endpoints.registration import RegistrationInput, RegistrationEndpoint
 from graphql_schema.schema import schema, GraphQLContext
 
@@ -19,7 +19,7 @@ class App:
     access_security = JwtAccessBearerCookie(
         secret_key=APP_SECRET_KEY,
         auto_error=False,
-        access_expires_delta=timedelta(hours=1)
+        access_expires_delta=timedelta(seconds=30)
     )
     refresh_security = JwtRefreshBearerCookie(
         secret_key=APP_SECRET_KEY,
@@ -43,7 +43,7 @@ class App:
     def setup_middleware(app: FastAPI):
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["*"],
+            allow_origins=["http://localhost:9001"],
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
@@ -89,19 +89,15 @@ class App:
                 db: AsyncSession = Depends(db_session),
                 credentials: JwtAuthorizationCredentials = Security(self.access_security)
         ):
-            return await MeEndpoint(db, credentials).on_get()
+            return await MeEndpoint(db).on_get(credentials)
 
-        # @app.post("/refresh")
-        # def refresh(
-        #         credentials: JwtAuthorizationCredentials = Security(refresh_security)
-        # ):
-        #     # Update access/refresh tokens pair
-        #     # We can customize expires_delta when creating
-        #     access_token = access_security.create_access_token(subject=credentials.subject)
-        #     refresh_token = refresh_security.create_refresh_token(subject=credentials.subject,
-        #     expires_delta=timedelta(days=2))
-        #
-        #     return {"access_token": access_token, "refresh_token": refresh_token}
+        @app.post("/refresh")
+        async def refresh(
+                resp: Response,
+                credentials: JwtAuthorizationCredentials = Security(self.refresh_security)
+        ):
+           return await RefreshEndpoint(self.access_security, self.refresh_security).on_post(resp, credentials)
+
 
         self.setup_graphql_endpoint(app)
 

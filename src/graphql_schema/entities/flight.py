@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import List, Optional
+from typing import List, Optional, Annotated, TYPE_CHECKING
 import strawberry
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +17,8 @@ from graphql_schema.entities.poi import PointOfInterest
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 
 
-# Bude se hodit: https://strawberry.rocks/docs/types/lazy
+if TYPE_CHECKING:
+    from .copilot import CopilotType
 
 
 @strawberry.input()
@@ -74,7 +75,7 @@ class Flight:
         return 0
 
     duration_min_calculated: int = strawberry.field(resolver=duration_min_calculated)
-    copilot: Optional[CopilotType] = strawberry.field(resolver=load_copilot)
+    copilot: Optional[Annotated["CopilotType", strawberry.lazy(".copilot")]] = strawberry.field(resolver=load_copilot)
     aircraft: Aircraft = strawberry.field(resolver=load_aircraft)
     takeoff_airport: Airport = strawberry.field(resolver=load_takeoff_airport)
     landing_airport: Airport = strawberry.field(resolver=load_landing_airport)
@@ -186,6 +187,7 @@ class EditFlightMutation:
 
     @strawberry.mutation
     async def edit_flight(self, info, id: int, input: EditFlightInput) -> Flight:
+        # TODO: umoznit editovat jen vlastni lety!
         flight = await models.Flight.update(info.context.db, id=id, data=input.to_dict())
 
         if input.track is not None:
