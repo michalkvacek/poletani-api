@@ -1,9 +1,11 @@
 from datetime import timedelta
 from fastapi import FastAPI, APIRouter, Depends, Security, HTTPException
-from fastapi_jwt import JwtAuthorizationCredentials, JwtRefreshBearer, JwtAccessBearerCookie, JwtRefreshBearerCookie
+from fastapi_jwt import JwtAuthorizationCredentials, JwtAccessBearerCookie, JwtRefreshBearerCookie
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.background import BackgroundTasks
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse, Response
+from starlette.staticfiles import StaticFiles
 from starlette.status import HTTP_401_UNAUTHORIZED
 from strawberry.fastapi import GraphQLRouter
 from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG
@@ -19,7 +21,7 @@ class App:
     access_security = JwtAccessBearerCookie(
         secret_key=APP_SECRET_KEY,
         auto_error=False,
-        access_expires_delta=timedelta(seconds=30)
+        access_expires_delta=timedelta(minutes=20)
     )
     refresh_security = JwtRefreshBearerCookie(
         secret_key=APP_SECRET_KEY,
@@ -41,6 +43,7 @@ class App:
 
     @staticmethod
     def setup_middleware(app: FastAPI):
+        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
         app.add_middleware(
             CORSMiddleware,
             allow_origins=["http://localhost:9001"],
@@ -62,7 +65,7 @@ class App:
 
         def setup_graphql_context(
                 credentials: JwtAuthorizationCredentials = Security(self.access_security),
-                db: AsyncSession = Depends(db_session),
+                db: AsyncSession = Depends(db_session)
         ):
             if not credentials:
                 raise HTTPException(status_code=HTTP_401_UNAUTHORIZED)
@@ -71,7 +74,8 @@ class App:
                 jwt_auth_credentials=credentials,
                 user_id=credentials['id'],
                 db=db,
-                jwt=self.access_security
+                jwt=self.access_security,
+                background_tasks=Depends(BackgroundTasks)
             )
 
         graphql_app = GraphQLRouter(
@@ -96,10 +100,11 @@ class App:
                 resp: Response,
                 credentials: JwtAuthorizationCredentials = Security(self.refresh_security)
         ):
-           return await RefreshEndpoint(self.access_security, self.refresh_security).on_post(resp, credentials)
-
+            return await RefreshEndpoint(self.access_security, self.refresh_security).on_post(resp, credentials)
 
         self.setup_graphql_endpoint(app)
+
+        app.mount("/uploads", StaticFiles(directory="/app/uploads"), name="uploads")
 
         # public endpoints
 

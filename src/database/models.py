@@ -27,8 +27,7 @@ class BaseModel:
     async def create(cls, db_session: AsyncSession, data: dict):
         model = cls(**data)
         db_session.add(model)
-        # await db_session.flush()
-        # await db_session.refresh(model)
+        await db_session.flush()
 
         return model
 
@@ -43,12 +42,10 @@ class BaseModel:
             if getattr(obj, key) != value:
                 setattr(obj, key, value)
 
-        # await db_session.commit()
-
         return obj
 
 
-# TODO: doplnit GPX k letu, pocasi k letu (podle lokality, mozna do FlightTrack)
+# TODO: doplnit GPX k letu
 
 user_is_in_organization = Table(
     "user_is_in_organization",
@@ -67,10 +64,13 @@ class Airport(BaseModel):
     gps_latitude: Mapped[float] = mapped_column(Float, nullable=False)
     gps_longitude: Mapped[float] = mapped_column(Float, nullable=False)
     elevation: Mapped[int] = mapped_column(Integer, nullable=True)
+    is_public: Mapped[bool] = mapped_column(Boolean, server_default='0')
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'), nullable=True)  # automaticky import nebude mit ID
     deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
 
     metars: Mapped['Metar'] = relationship(back_populates="airport")
+    created_by: Mapped['User'] = relationship()
 
 
 class PointOfInterestType(BaseModel):
@@ -112,8 +112,10 @@ class Photo(BaseModel):
     filename: Mapped[str] = mapped_column(String(128), nullable=False)
     is_flight_cover: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    exposed_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     gps_latitude: Mapped[float] = mapped_column(Float, nullable=True)
     gps_longitude: Mapped[float] = mapped_column(Float, nullable=True)
+    gps_altitude: Mapped[float] = mapped_column(Float, nullable=True)
     point_of_interest_id: Mapped[int] = mapped_column(Integer, ForeignKey("point_of_interest.id"), nullable=True)
     flight_id: Mapped[int] = mapped_column(Integer, ForeignKey("flight.id"), nullable=False)
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
@@ -184,23 +186,38 @@ class FlightTrack(BaseModel):
     point_of_interest: Mapped['PointOfInterest'] = relationship()
 
 
+class WeatherInfo(BaseModel):
+    __tablename__ = "weather_info"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    qnh: Mapped[int] = mapped_column(Integer, nullable=True)
+    temperature_surface: Mapped[Float] = mapped_column(Float, nullable=True)
+    dewpoint_surface: Mapped[Float] = mapped_column(Float, nullable=True)
+    rain: Mapped[Float] = mapped_column(Float, nullable=True)
+    cloudcover_low: Mapped[Float] = mapped_column(Float, nullable=True)
+    cloudcover_total: Mapped[Float] = mapped_column(Float, nullable=True)
+    wind_speed_surface: Mapped[Float] = mapped_column(Float, nullable=True)
+    wind_direction_surface: Mapped[Float] = mapped_column(Float, nullable=True)
+    datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
 class Flight(BaseModel):
     __tablename__ = "flight"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    takeoff_airport_id: Mapped[int] = mapped_column(Integer, ForeignKey("airport.id"), nullable=False)
+    landing_airport_id: Mapped[int] = mapped_column(Integer, ForeignKey("airport.id"), nullable=False)
     takeoff_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     landing_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     duration_total: Mapped[int] = mapped_column(Integer, nullable=True)
     duration_pic: Mapped[int] = mapped_column(Integer, nullable=True)
-    takeoff_airport_id: Mapped[int] = mapped_column(Integer, ForeignKey("airport.id"), nullable=True)
-    landing_airport_id: Mapped[int] = mapped_column(Integer, ForeignKey("airport.id"), nullable=True)
+    gpx_track_filename: Mapped[str] = mapped_column(String(128), nullable=True)
     aircraft_id: Mapped[int] = mapped_column(Integer, ForeignKey('aircraft.id'))
     copilot_id: Mapped[int] = mapped_column(Integer, ForeignKey('copilot.id'), nullable=True)
-
-    solo: Mapped[bool] = mapped_column(Boolean, default=True)
-    with_instructor: Mapped[bool] = mapped_column(Boolean, default=False)
+    weather_info_takeoff_id: Mapped[int] = mapped_column(Integer, ForeignKey('weather_info.id'), nullable=True)
+    weather_info_landing_id: Mapped[int] = mapped_column(Integer, ForeignKey('weather_info.id'), nullable=True)
     landings: Mapped[int] = mapped_column(Integer, default=1)
 
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
@@ -209,14 +226,14 @@ class Flight(BaseModel):
 
     takeoff_airport: Mapped['Airport'] = relationship(foreign_keys=[takeoff_airport_id])
     landing_airport: Mapped['Airport'] = relationship(foreign_keys=[landing_airport_id])
+    weather_info_landing: Mapped[WeatherInfo] = relationship(foreign_keys=[weather_info_landing_id])
+    weather_info_takeoff: Mapped[WeatherInfo] = relationship(foreign_keys=[weather_info_takeoff_id])
     track: Mapped['FlightTrack'] = relationship()
     copilot: Mapped['Copilot'] = relationship(back_populates="flights")
     aircraft: Mapped['Aircraft'] = relationship(back_populates="flights")
     photos: Mapped[List['Photo']] = relationship(foreign_keys=[Photo.flight_id])
     user: Mapped['User'] = relationship(back_populates="flights")
     created_by: Mapped['User'] = relationship()
-
-    # flight_track: Mapped[List['PointOfInterest']] = relationship(secondary=FlightTrack)
 
 
 class Copilot(BaseModel):

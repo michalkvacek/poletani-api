@@ -1,8 +1,9 @@
 from datetime import timedelta
 from typing import List, Optional, Annotated, TYPE_CHECKING
 import strawberry
-from sqlalchemy import select, delete
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from strawberry.file_uploads import Upload
+
 from database import models
 from graphql_schema.dataloaders import copilots_dataloader
 from graphql_schema.dataloaders.aircraft import aircraft_dataloader
@@ -11,26 +12,16 @@ from graphql_schema.dataloaders.photos import photos_dataloader, cover_photo_loa
 from graphql_schema.dataloaders.poi import flight_track_dataloader, poi_dataloader
 from graphql_schema.entities.aircraft import Aircraft
 from graphql_schema.entities.airport import Airport
-from graphql_schema.entities.copilot import CopilotType
 from graphql_schema.entities.photo import Photo
 from graphql_schema.entities.poi import PointOfInterest
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
-
+from upload_utils import get_public_url, handle_file_upload, check_directories, file_exists, delete_file
+from .helpers.flight import handle_aircraft_save, handle_track_edit, handle_copilot_edit, handle_weather_info
+from ..dataloaders.weather import airport_weather_info_loader
+from ..types import ComboboxInput
 
 if TYPE_CHECKING:
-    from .copilot import CopilotType
-
-
-@strawberry.input()
-class PointOfInterestInput:
-    id: Optional[int] = None
-    name: str
-
-
-@strawberry.input()
-class CopilotInput:
-    id: Optional[int] = None
-    name: str
+    from .copilot import Copilot
 
 
 @strawberry_sqlalchemy_type(models.FlightTrack)
@@ -39,6 +30,11 @@ class FlightTrack:
         return await poi_dataloader.load(root.point_of_interest_id)
 
     point_of_interest: PointOfInterest = strawberry.field(resolver=load_poi)
+
+
+@strawberry_sqlalchemy_type(models.WeatherInfo)
+class WeatherInfo:
+    pass
 
 
 @strawberry_sqlalchemy_type(models.Flight)
@@ -64,6 +60,12 @@ class Flight:
     async def load_cover_photo(root):
         return await cover_photo_loader.load(root.id)
 
+    async def load_takeoff_weather_info(root):
+        return await airport_weather_info_loader.load(root.weather_info_takeoff_id)
+
+    async def load_landing_weather_info(root):
+        return await airport_weather_info_loader.load(root.weather_info_landing_id)
+
     def duration_min_calculated(root):
         if root.duration_total:
             return root.duration_total
@@ -74,15 +76,23 @@ class Flight:
 
         return 0
 
+    def load_gpx_track_url(root):
+        if not root.gpx_track_filename:
+            return None
+
+        return f"http://localhost:8000/uploads/tracks/{root.gpx_track_filename}"
+
     duration_min_calculated: int = strawberry.field(resolver=duration_min_calculated)
-    copilot: Optional[Annotated["CopilotType", strawberry.lazy(".copilot")]] = strawberry.field(resolver=load_copilot)
+    copilot: Optional[Annotated["Copilot", strawberry.lazy(".copilot")]] = strawberry.field(resolver=load_copilot)
     aircraft: Aircraft = strawberry.field(resolver=load_aircraft)
     takeoff_airport: Airport = strawberry.field(resolver=load_takeoff_airport)
     landing_airport: Airport = strawberry.field(resolver=load_landing_airport)
     cover_photo: Optional[Photo] = strawberry.field(resolver=load_cover_photo)
     track: List[FlightTrack] = strawberry.field(resolver=load_track)
-
+    takeoff_weather_info: Optional[WeatherInfo] = strawberry.field(resolver=load_takeoff_weather_info)
+    landing_weather_info: Optional[WeatherInfo] = strawberry.field(resolver=load_landing_weather_info)
     photos: List[Photo] = strawberry.field(resolver=load_photos)
+    gpx_track_url: Optional[str] = strawberry.field(resolver=load_gpx_track_url)
 
 
 def get_base_query(user_id: int):
@@ -96,12 +106,9 @@ def get_base_query(user_id: int):
 
 @strawberry.type
 class FlightQueries:
-    @strawberry.input
-    class FlightFilters:
-        takeoff: Optional[int]
 
     @strawberry.field
-    async def flights(root, info, filters: Optional[FlightFilters] = None) -> List[Flight]:
+    async def flights(root, info) -> List[Flight]:
         query = get_base_query(info.context.user_id).order_by(models.Flight.id.desc())
 
         return (await info.context.db.scalars(query)).all()
@@ -118,87 +125,94 @@ class FlightQueries:
 
 @strawberry.type
 class CreateFlightMutation:
-    @strawberry_sqlalchemy_input(models.Flight, exclude_fields=["id"])
+    @strawberry_sqlalchemy_input(models.Flight, exclude_fields=[
+        "id", "aircraft_id", "landing_airport_id", "takeoff_airport_id", "weather_info_takeoff_id",
+        "weather_info_landing_id", "with_instructor"
+    ])
     class CreateFlightInput:
-        pass
+        aircraft: ComboboxInput
+        landing_airport: ComboboxInput
+        takeoff_airport: ComboboxInput
 
     @strawberry.mutation
     async def create_flight(self, info, input: CreateFlightInput) -> Flight:
+        aircraft_id = await handle_aircraft_save(info.context.db, info.context.user_id, input.aircraft)
+        takeoff_airport = (await info.context.db.scalars(select(models.Airport).filter(models.Airport.id == input.takeoff_airport.id))).one()
+        if input.takeoff_airport.id == input.landing_airport.id:
+            landing_airport = takeoff_airport
+        else:
+            landing_airport = (await info.context.db.scalars(select(models.Airport).filter(models.Airport.id == input.landing_airport.id))).one()
+
+        weather_takeoff = await handle_weather_info(info.context.db, input.takeoff_datetime, takeoff_airport)
+        weather_landing = await handle_weather_info(info.context.db, input.landing_datetime, landing_airport)
+
         return await models.Flight.create(info.context.db, data={
             **input.to_dict(),
+            "weather_info_takeoff_id": weather_takeoff.id,
+            "weather_info_landing_id": weather_landing.id,
+            "takeoff_airport_id": takeoff_airport.id,
+            "landing_airport_id": landing_airport.id,
+            "aircraft_id": aircraft_id,
             "created_by_id": info.context.user_id
         })
 
 
-async def handle_track_edit(db: AsyncSession, flight: models.Flight, track: List[PointOfInterestInput], user_id: int):
-    await db.execute(delete(models.FlightTrack).filter(models.FlightTrack.flight_id == flight.id))
-
-    existing_poi_ids = [i.id for i in track if i.id]
-    poi_query = (
-        select(models.PointOfInterest)
-        .filter(models.PointOfInterest.created_by_id == user_id)
-        .filter(models.PointOfInterest.id.in_(existing_poi_ids))
-    )
-    pois = (await db.scalars(poi_query)).all()
-    poi_map = {poi.id: poi for poi in pois}
-
-    order = 0
-    for item in track:
-        poi_object = None
-        if item.id:
-            poi_object = poi_map.get(item.id)
-
-        if not poi_object:
-            poi_object = await models.PointOfInterest.create(db, data=dict(created_by_id=user_id, name=item.name))
-            await db.flush()
-
-        await models.FlightTrack.create(
-            db,
-            data={
-                "flight_id": flight.id,
-                "point_of_interest_id": poi_object.id,
-                "order": order
-            }
-        )
-        order += 1
-
-
-async def handle_copilot_edit(db: AsyncSession, copilot: CopilotInput, user_id: int) -> int:
-    if copilot.id:
-        return copilot.id
-    else:
-        copilot = await models.Copilot.create(
-            db,
-            data={
-                "name": copilot.name,
-                "created_by_id": user_id,
-            }
-        )
-        await db.flush()
-        return copilot.id
-
-
 @strawberry.type
 class EditFlightMutation:
-    @strawberry_sqlalchemy_input(models.Flight, exclude_fields=["id", "copilot_id", "deleted"], all_optional=True)
+    @strawberry_sqlalchemy_input(models.Flight, exclude_fields=[
+        "id", "aircraft_id", "copilot_id", "deleted", "landing_airport_id", "takeoff_airport_id",
+        "weather_info_takeoff_id", "weather_info_landing_id", "gpx_track_filename"
+    ], all_optional=True)
     class EditFlightInput:
-        track: Optional[List[PointOfInterestInput]] = None
-        copilot: Optional[CopilotInput] = None
+        gpx_track: Optional[Upload] = None
+        track: Optional[List[ComboboxInput]] = None
+        copilot: Optional[ComboboxInput] = None
+        aircraft: Optional[ComboboxInput] = None
+        landing_airport: Optional[ComboboxInput] = None
+        takeoff_airport: Optional[ComboboxInput] = None
 
     @strawberry.mutation
     async def edit_flight(self, info, id: int, input: EditFlightInput) -> Flight:
         # TODO: umoznit editovat jen vlastni lety!
-        flight = await models.Flight.update(info.context.db, id=id, data=input.to_dict())
+
+        flight = (await info.context.db.scalars(
+            get_base_query(info.context.user_id).filter(models.Flight.id == id)
+        )).one()
+
+        data = input.to_dict()
+
+        if input.gpx_track is not None:
+            # TODO: poresit validaci uploadovaneho souboru!
+            path = "/app/uploads/tracks"
+
+            if flight.gpx_track_filename and file_exists(path+"/"+flight.gpx_track_filename):
+                delete_file(path+"/"+flight.gpx_track_filename)
+
+            data['gpx_track_filename'] = await handle_file_upload(input.gpx_track, path)
+
+        if input.takeoff_airport is not None:
+            # TODO: stahnout nove pocasi na novem miste! Stejne tak pri zmene data/casu odletu
+            data['takeoff_airport_id'] = input.takeoff_airport.id
+
+        if input.landing_airport is not None:
+            # TODO: stahnout nove pocasi na novem miste! Stejne tak pri zmene data/casu priletu
+            data['landing_airport_id'] = input.landing_airport.id
+
+        if input.aircraft is not None:
+            data['aircraft_id'] = await handle_aircraft_save(info.context.db, info.context.user_id, input.aircraft)
+
+        flight = await models.Flight.update(info.context.db, id=id, data=data)
 
         if input.track is not None:
             await handle_track_edit(db=info.context.db, flight=flight, track=input.track, user_id=info.context.user_id)
 
-        if flight.solo:
-            flight.copilot_id = None
-        elif input.copilot is not None:
+        if input.copilot:
             flight.copilot_id = await handle_copilot_edit(info.context.db, input.copilot, info.context.user_id)
+        else:
+            flight.copilot_id = None
 
         return flight
+
 
 @strawberry.type
 class DeleteFlightMutation:

@@ -1,19 +1,28 @@
-from typing import List, Optional
+from typing import List, Optional, Annotated, TYPE_CHECKING
 import strawberry
 from strawberry.file_uploads import Upload
 from sqlalchemy import select
 from database import models
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from upload_utils import handle_file_upload, delete_file, get_public_url
+from ..dataloaders.flight import flights_by_aircraft_dataloader
+
+if TYPE_CHECKING:
+    from .flight import Flight
 
 AIRCRAFT_UPLOAD_DEST_PATH = "/app/uploads/aircrafts/"
 
 
 @strawberry_sqlalchemy_type(models.Aircraft)
 class Aircraft:
+    async def load_flights(root):
+        return await flights_by_aircraft_dataloader.load(root.id)
+
     photo_url: Optional[str] = strawberry.field(
         resolver=lambda root: get_public_url(f"aircrafts/{root.photo_filename}") if root.photo_filename else None
     )
+
+    flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(resolver=load_flights)
 
 
 def get_base_query(user_id: int):

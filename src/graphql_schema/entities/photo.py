@@ -4,17 +4,23 @@ from sqlalchemy import select, update
 from strawberry.file_uploads import Upload
 from database import models
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
-from upload_utils import get_public_url, handle_file_upload, delete_file
+from upload_utils import get_public_url, handle_file_upload, delete_file, parse_exif_info, generate_thumbnail, file_exists
 
 
 @strawberry_sqlalchemy_type(models.Photo)
 class Photo:
-    url: str = strawberry.field(
-        resolver=lambda root: get_public_url(f"photos/{root.flight_id}/{root.filename}")
-    )
-    thumbnail_url: str = strawberry.field(
-        resolver=lambda root: get_public_url(f"photos/{root.flight_id}/{root.filename}")  # TODO: doplnit thumb!
-    )
+    def resolve_url(root):
+        return get_public_url(f"photos/{root.flight_id}/{root.filename}")
+
+    def resolve_thumb_url(root):
+        thumbnail = get_photo_basepath(root.flight_id)+"/thumbs/"+root.filename
+        if not file_exists(thumbnail):
+            return get_public_url(f"photos/{root.flight_id}/{root.filename}")
+
+        return get_public_url(f"photos/{root.flight_id}/thumbs/{root.filename}")
+
+    url: str = strawberry.field(resolver=resolve_url)
+    thumbnail_url: str = strawberry.field(resolver=resolve_thumb_url)
 
 
 def get_base_query(user_id: int):
@@ -39,27 +45,32 @@ class PhotoQueries:
 
 @strawberry.type
 class UploadPhotoMutation:
-    @strawberry_sqlalchemy_input(models.Photo, exclude_fields=["id", "filename", "is_flight_cover"])
+    @strawberry_sqlalchemy_input(models.Photo, exclude_fields=[
+        "id", "filename", "is_flight_cover", "exposed_at", "gps_latitude", "gps_longitude", "gps_altitude"
+    ])
     class UploadPhotoInput:
         photo: Upload
 
     @strawberry.mutation
     async def upload_photo(self, info, input: UploadPhotoInput) -> Photo:
-        filename = await handle_file_upload(input.photo, get_photo_basepath(input.flight_id))
+        path = get_photo_basepath(input.flight_id)
+        filename = await handle_file_upload(input.photo, path)
+        info.context.background_tasks.add_task(generate_thumbnail, path=path, filename=filename, size=(300, 200))
 
-        # todo: udelat nahled do thumbs slozky
+        exif_info = await parse_exif_info(path, filename)
 
-        is_flight_cover = False  # TODO: pokud k letu neexistuje zadna fotka, vybrat nahodne jednu a tu nastavit jako cover
         created_photo = await models.Photo.create(data={
             "flight_id": input.flight_id,
             "name": input.name,
             "filename": filename,
             "description": input.description,
-            "is_flight_cover": is_flight_cover,
+            "exposed_at": exif_info.get("datetime"),
+            "gps_latitude": exif_info.get("gps_latitude"),
+            "gps_longitude": exif_info.get("gps_longitude"),
+            "gps_altitude": exif_info.get("gps_altitude"),
+            "is_flight_cover": False,
             "created_by_id": info.context.user_id,
         }, db_session=info.context.db)
-
-        await info.context.db.flush()
 
         return created_photo
 

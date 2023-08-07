@@ -48,6 +48,7 @@ class LoginEndpoint(BaseEndpoint):
             "access_token_validity": self.access_security.access_expires_delta.total_seconds(),
         }
 
+
 class RefreshEndpoint(BaseEndpoint):
     def __init__(self, access_token: JwtAccess, refresh_token: JwtRefresh):
         super().__init__(db=None)

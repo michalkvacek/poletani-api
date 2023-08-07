@@ -24,4 +24,6 @@ class FlightsLoader:
 
             return [result_data[id_] for id_ in ids]
 
+
 flights_by_copilot_dataloader = DataLoader(load_fn=FlightsLoader("copilot_id").load, cache=False)
+flights_by_aircraft_dataloader = DataLoader(load_fn=FlightsLoader("aircraft_id").load, cache=False)

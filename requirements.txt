@@ -8,3 +8,8 @@ alembic==1.11.1
 passlib==1.7.4
 pydantic==1.10.11  # vysla uz 2.0, ale nejak mi to nefunguje
 
+pillow
+exif
+aiocache
+aiohttp
+
