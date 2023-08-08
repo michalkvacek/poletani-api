@@ -15,7 +15,7 @@ from graphql_schema.entities.airport import Airport
 from graphql_schema.entities.photo import Photo
 from graphql_schema.entities.poi import PointOfInterest
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
-from upload_utils import get_public_url, handle_file_upload, check_directories, file_exists, delete_file
+from upload_utils import handle_file_upload, file_exists, delete_file
 from .helpers.flight import handle_aircraft_save, handle_track_edit, handle_copilot_edit, handle_weather_info
 from ..dataloaders.weather import airport_weather_info_loader
 from ..types import ComboboxInput
@@ -95,28 +95,40 @@ class Flight:
     gpx_track_url: Optional[str] = strawberry.field(resolver=load_gpx_track_url)
 
 
-def get_base_query(user_id: int):
-    return (
+def get_base_query(user_id: Optional[int], username: Optional[str] = None, is_auth: bool = False):
+    query = (
         select(models.Flight)
-        .filter(models.Flight.created_by_id == user_id)
         .filter(models.Flight.deleted.is_(False))
         .order_by(models.Flight.id.desc())
     )
+
+    if user_id:
+        query = query.filter(models.Flight.created_by_id == user_id)
+
+    if username:
+        query = query.filter(models.Flight.created_by.public_username == username)
+        
+    if not is_auth:
+        query = query.filter(models.Flight.is_public.is_(True))
+
+    return query
 
 
 @strawberry.type
 class FlightQueries:
 
     @strawberry.field
-    async def flights(root, info) -> List[Flight]:
-        query = get_base_query(info.context.user_id).order_by(models.Flight.id.desc())
-
+    async def flights(root, info, username: Optional[str] = None) -> List[Flight]:
+        query = (
+            get_base_query(user_id=info.context.user_id, username=username, is_auth=bool(info.context.user_id))
+            .order_by(models.Flight.id.desc())
+        )
         return (await info.context.db.scalars(query)).all()
 
     @strawberry.field
-    async def flight(root, info, id: int) -> Flight:
+    async def flight(root, info, id: int, username: Optional[str] = None) -> Flight:
         query = (
-            get_base_query(info.context.user_id)
+            get_base_query(user_id=info.context.user_id, username=username, is_auth=bool(info.context.user_id))
             .filter(models.Flight.id == id)
             .filter(models.Flight.deleted.is_(False))
         )
@@ -176,7 +188,7 @@ class EditFlightMutation:
         # TODO: umoznit editovat jen vlastni lety!
 
         flight = (await info.context.db.scalars(
-            get_base_query(info.context.user_id).filter(models.Flight.id == id)
+            get_base_query(user_id=info.context.user_id, is_auth=bool(info.context.user_id)).filter(models.Flight.id == id)
         )).one()
 
         data = input.to_dict()
@@ -221,7 +233,7 @@ class DeleteFlightMutation:
     async def delete_flight(self, info, id: int) -> Flight:
         flight = (
             (await info.context.db.scalars(
-                get_base_query(info.context.user_id)
+                get_base_query(user_id=info.context.user_id, is_auth=True)
                 .filter(models.Flight.id == id))
              )
             .one()

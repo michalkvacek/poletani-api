@@ -4,6 +4,7 @@ from graphql_schema.entities.copilot import CreateCopilotMutation, EditCopilotMu
 from graphql_schema.entities.flight import CreateFlightMutation, EditFlightMutation, DeleteFlightMutation
 from graphql_schema.entities.photo import UploadPhotoMutation, DeletePhotoMutation, EditPhotoMutation
 from graphql_schema.entities.poi import CreatePointOfInterestMutation, EditPointOfInterestMutation
+from graphql_schema.entities.user import EditUserMutation
 
 Mutation = merge_types("Mutation", (
     CreateAircraftMutation,
@@ -19,4 +20,5 @@ Mutation = merge_types("Mutation", (
     EditPointOfInterestMutation,
     CreateCopilotMutation,
     EditCopilotMutation,
+    EditUserMutation,
 ))

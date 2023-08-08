@@ -4,7 +4,6 @@ from fastapi_jwt.jwt import JwtAccess, JwtRefresh
 from passlib.hash import bcrypt
 from sqlalchemy import select
 from starlette.responses import Response
-
 from database.models import User
 from endpoints.base import BaseEndpoint
 from pydantic import BaseModel
@@ -74,15 +73,3 @@ class RefreshEndpoint(BaseEndpoint):
             "access_token": access_token,
             "access_token_validity": self.access_security.access_expires_delta.total_seconds(),
         }
-
-
-class MeEndpoint(BaseEndpoint):
-
-    async def on_get(self, credentials) -> dict:
-        if not credentials:
-            raise HTTPException(status_code=401)
-
-        query = select(User).filter_by(id=credentials['id'])
-        user = (await self.db.scalars(query)).first()
-
-        return user.as_dict()

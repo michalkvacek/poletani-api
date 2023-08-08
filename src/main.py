@@ -10,8 +10,7 @@ from starlette.status import HTTP_401_UNAUTHORIZED
 from strawberry.fastapi import GraphQLRouter
 from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG
 from dependencies.db import db_session
-from endpoints.init_data import InitDataEndpoint
-from endpoints.login import LoginEndpoint, LoginInput, MeEndpoint, RefreshEndpoint
+from endpoints.login import LoginEndpoint, LoginInput, RefreshEndpoint
 from endpoints.registration import RegistrationInput, RegistrationEndpoint
 from graphql_schema.schema import schema, GraphQLContext
 
@@ -33,6 +32,7 @@ class App:
 
         self.setup_exception_handlers(app)
         self.setup_middleware(app)
+        self.setup_static_paths(app)
         self.setup_routes(app)
 
         return app
@@ -43,14 +43,18 @@ class App:
 
     @staticmethod
     def setup_middleware(app: FastAPI):
-        print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["http://localhost:9001"],
+            allow_origins=["http://localhost:9001"],  # TODO: pridat pres ENV URL produkce
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
         )
+
+    @staticmethod
+    def setup_static_paths(app: FastAPI):
+        app.mount("/uploads", StaticFiles(directory="/app/uploads"), name="uploads")
+        app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
     def setup_graphql_endpoint(self, app: FastAPI):
         if APP_DEBUG:
@@ -67,12 +71,9 @@ class App:
                 credentials: JwtAuthorizationCredentials = Security(self.access_security),
                 db: AsyncSession = Depends(db_session)
         ):
-            if not credentials:
-                raise HTTPException(status_code=HTTP_401_UNAUTHORIZED)
-
             return GraphQLContext(
                 jwt_auth_credentials=credentials,
-                user_id=credentials['id'],
+                user_id=credentials['id'] if credentials else None,
                 db=db,
                 jwt=self.access_security,
                 background_tasks=Depends(BackgroundTasks)
@@ -88,13 +89,6 @@ class App:
 
     def setup_routes(self, app: FastAPI):
         # protected endpoints
-        @self.api_router.get("/me")
-        async def me(
-                db: AsyncSession = Depends(db_session),
-                credentials: JwtAuthorizationCredentials = Security(self.access_security)
-        ):
-            return await MeEndpoint(db).on_get(credentials)
-
         @app.post("/refresh")
         async def refresh(
                 resp: Response,
@@ -104,10 +98,7 @@ class App:
 
         self.setup_graphql_endpoint(app)
 
-        app.mount("/uploads", StaticFiles(directory="/app/uploads"), name="uploads")
-
         # public endpoints
-
         @self.api_router.post("/login")
         async def login(resp: Response, user: LoginInput, db: AsyncSession = Depends(db_session)):
             return await LoginEndpoint(db, self.access_security, self.refresh_security).on_post(user, resp)
@@ -115,12 +106,6 @@ class App:
         @self.api_router.post("/registration", status_code=201)
         async def registration(user: RegistrationInput, db: AsyncSession = Depends(db_session)):
             return await RegistrationEndpoint(db).on_post(user)
-
-        # testing endpoint
-
-        @self.api_router.get("/init-data")
-        async def init_data(db: AsyncSession = Depends(db_session)):
-            return await InitDataEndpoint(db).on_get()
 
         # musi byt na konci
         app.include_router(self.api_router)

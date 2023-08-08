@@ -45,8 +45,6 @@ class BaseModel:
         return obj
 
 
-# TODO: doplnit GPX k letu
-
 user_is_in_organization = Table(
     "user_is_in_organization",
     BaseModel.metadata,
@@ -219,7 +217,7 @@ class Flight(BaseModel):
     weather_info_takeoff_id: Mapped[int] = mapped_column(Integer, ForeignKey('weather_info.id'), nullable=True)
     weather_info_landing_id: Mapped[int] = mapped_column(Integer, ForeignKey('weather_info.id'), nullable=True)
     landings: Mapped[int] = mapped_column(Integer, default=1)
-
+    is_public: Mapped[bool] = mapped_column(Boolean, server_default='0')
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
@@ -282,7 +280,10 @@ class User(BaseModel):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    avatar_image_url: Mapped[str] = mapped_column(String(128), nullable=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    public_username: Mapped[str] = mapped_column(String(128), nullable=True, unique=True)
+    avatar_image_filename: Mapped[str] = mapped_column(String(128), nullable=True)
+    title_image_filename: Mapped[str] = mapped_column(String(128), nullable=True)
     password_hashed: Mapped[str] = mapped_column(String(60), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
