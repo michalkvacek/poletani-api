@@ -1,11 +1,14 @@
+from functools import wraps
 from typing import Optional
 import strawberry
 from graphql import GraphQLError
 from passlib.hash import bcrypt
 from sqlalchemy import select
+from sqlalchemy.exc import NoResultFound
 from strawberry.file_uploads import Upload
 from database import models
 from database.models import User
+from decorators.error_logging import error_logging
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from upload_utils import handle_file_upload, delete_file
 
@@ -32,8 +35,8 @@ class User:
 @strawberry.type
 class UserQueries:
     @strawberry.field
+    @error_logging
     async def user(root, info, username: str) -> User:
-        print("username")
         if len(username) == 0:
             raise GraphQLError("Username not set!")
 
@@ -43,6 +46,9 @@ class UserQueries:
 
     @strawberry.field
     async def logged_user(root, info) -> User:
+        if not info.context.user_id:
+            raise GraphQLError("Not authenticated")
+
         return (await info.context.db.scalars(
             select(models.User).filter_by(id=info.context.user_id)
         )).one()

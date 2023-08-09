@@ -1,10 +1,10 @@
 from datetime import timedelta
-from typing import List, Optional, Annotated, TYPE_CHECKING
+from typing import List, Optional, Annotated, TYPE_CHECKING, Tuple
 import strawberry
 from sqlalchemy import select
 from strawberry.file_uploads import Upload
-
 from database import models
+from decorators.error_logging import error_logging
 from graphql_schema.dataloaders import copilots_dataloader
 from graphql_schema.dataloaders.aircraft import aircraft_dataloader
 from graphql_schema.dataloaders.airport import airport_dataloader
@@ -107,7 +107,7 @@ def get_base_query(user_id: Optional[int], username: Optional[str] = None, is_au
 
     if username:
         query = query.filter(models.Flight.created_by.public_username == username)
-        
+
     if not is_auth:
         query = query.filter(models.Flight.is_public.is_(True))
 
@@ -126,6 +126,7 @@ class FlightQueries:
         return (await info.context.db.scalars(query)).all()
 
     @strawberry.field
+    @error_logging
     async def flight(root, info, id: int, username: Optional[str] = None) -> Flight:
         query = (
             get_base_query(user_id=info.context.user_id, username=username, is_auth=bool(info.context.user_id))
@@ -133,6 +134,21 @@ class FlightQueries:
             .filter(models.Flight.deleted.is_(False))
         )
         return (await info.context.db.scalars(query)).one()
+
+
+async def get_airports(db, takeoff_airport_id: int, landing_airport_id: int) -> Tuple[models.Airport, models.Airport]:
+    takeoff_airport = (await db.scalars(
+        select(models.Airport).filter(models.Airport.id == takeoff_airport_id)
+    )).one()
+
+    if takeoff_airport_id == landing_airport_id:
+        landing_airport = takeoff_airport
+    else:
+        landing_airport = (await db.scalars(
+            select(models.Airport).filter(models.Airport.id == landing_airport_id)
+        )).one()
+
+    return takeoff_airport, landing_airport
 
 
 @strawberry.type
@@ -148,18 +164,20 @@ class CreateFlightMutation:
 
     @strawberry.mutation
     async def create_flight(self, info, input: CreateFlightInput) -> Flight:
-        aircraft_id = await handle_aircraft_save(info.context.db, info.context.user_id, input.aircraft)
-        takeoff_airport = (await info.context.db.scalars(select(models.Airport).filter(models.Airport.id == input.takeoff_airport.id))).one()
-        if input.takeoff_airport.id == input.landing_airport.id:
-            landing_airport = takeoff_airport
-        else:
-            landing_airport = (await info.context.db.scalars(select(models.Airport).filter(models.Airport.id == input.landing_airport.id))).one()
+        db = info.context.db
+        aircraft_id = await handle_aircraft_save(db, info.context.user_id, input.aircraft)
 
-        weather_takeoff = await handle_weather_info(info.context.db, input.takeoff_datetime, takeoff_airport)
-        weather_landing = await handle_weather_info(info.context.db, input.landing_datetime, landing_airport)
+        data = input.to_dict()
+        data['takeoff_datetime'] = data['takeoff_datetime'].astimezone()
+        data['landing_datetime'] = data['landing_datetime'].astimezone()
 
-        return await models.Flight.create(info.context.db, data={
-            **input.to_dict(),
+        takeoff_airport, landing_airport = await get_airports(db, input.takeoff_airport.id, input.landing_airport.id)
+
+        weather_takeoff = await handle_weather_info(db, input.takeoff_datetime, takeoff_airport)
+        weather_landing = await handle_weather_info(db, input.landing_datetime, landing_airport)
+
+        return await models.Flight.create(db, data={
+            **data,
             "weather_info_takeoff_id": weather_takeoff.id,
             "weather_info_landing_id": weather_landing.id,
             "takeoff_airport_id": takeoff_airport.id,
@@ -185,43 +203,77 @@ class EditFlightMutation:
 
     @strawberry.mutation
     async def edit_flight(self, info, id: int, input: EditFlightInput) -> Flight:
-        # TODO: umoznit editovat jen vlastni lety!
+        db = info.context.db
+        user_id = info.context.user_id
 
-        flight = (await info.context.db.scalars(
-            get_base_query(user_id=info.context.user_id, is_auth=bool(info.context.user_id)).filter(models.Flight.id == id)
+        flight = (await db.scalars(
+            get_base_query(user_id=user_id, is_auth=bool(user_id))
+            .filter(models.Flight.id == id)
         )).one()
 
         data = input.to_dict()
+        data['takeoff_datetime'] = data['takeoff_datetime'].astimezone()
+        data['landing_datetime'] = data['landing_datetime'].astimezone()
 
         if input.gpx_track is not None:
             # TODO: poresit validaci uploadovaneho souboru!
             path = "/app/uploads/tracks"
 
-            if flight.gpx_track_filename and file_exists(path+"/"+flight.gpx_track_filename):
-                delete_file(path+"/"+flight.gpx_track_filename)
+            if flight.gpx_track_filename and file_exists(path + "/" + flight.gpx_track_filename):
+                delete_file(path + "/" + flight.gpx_track_filename)
 
             data['gpx_track_filename'] = await handle_file_upload(input.gpx_track, path)
 
-        if input.takeoff_airport is not None:
-            # TODO: stahnout nove pocasi na novem miste! Stejne tak pri zmene data/casu odletu
-            data['takeoff_airport_id'] = input.takeoff_airport.id
+        update_takeoff_weather = False
+        update_landing_weather = False
 
-        if input.landing_airport is not None:
-            # TODO: stahnout nove pocasi na novem miste! Stejne tak pri zmene data/casu priletu
+        if input.takeoff_airport is not None and input.takeoff_airport.id != flight.takeoff_airport_id:
+            data['takeoff_airport_id'] = input.takeoff_airport.id
+            update_takeoff_weather = True
+
+        if input.landing_airport is not None and input.landing_airport.id != flight.landing_airport_id:
             data['landing_airport_id'] = input.landing_airport.id
+            update_landing_weather = True
+
+        takeoff_airport, landing_airport = await get_airports(
+            db,
+            takeoff_airport_id=input.takeoff_airport.id if input.takeoff_airport else flight.takeoff_airport_id,
+            landing_airport_id=input.landing_airport.id if input.landing_airport else flight.landing_airport_id,
+        )
+
+        if input.takeoff_datetime is not None and input.takeoff_datetime != flight.takeoff_datetime:
+            update_takeoff_weather = True
+
+        if input.landing_datetime is not None and input.landing_datetime != flight.landing_datetime:
+            update_landing_weather = True
+
+        if update_takeoff_weather:
+            weather = await handle_weather_info(db, input.takeoff_datetime, takeoff_airport)
+
+            # if flight.weather_info_takeoff_id:
+            #     db.delete(flight.weather_info_takeoff)
+
+            data['weather_info_takeoff_id'] = weather.id
+
+        if update_landing_weather:
+            weather = await handle_weather_info(db, input.landing_datetime, landing_airport)
+
+            # if flight.weather_info_landing_id:
+            #     db.delete(flight.weather_info_landing)
+
+            data['weather_info_landing_id'] = weather.id
+
+        # TODO: ^^ to pocasi smrdi zbytecne duplicitnim kodem, neslo by to nejak sjednotit?
 
         if input.aircraft is not None:
-            data['aircraft_id'] = await handle_aircraft_save(info.context.db, info.context.user_id, input.aircraft)
+            data['aircraft_id'] = await handle_aircraft_save(db, user_id, input.aircraft)
 
-        flight = await models.Flight.update(info.context.db, id=id, data=data)
+        data['copilot_id'] = await handle_copilot_edit(db, input.copilot, user_id) if input.copilot else None
+
+        flight = await models.Flight.update(db, id=id, data=data)
 
         if input.track is not None:
-            await handle_track_edit(db=info.context.db, flight=flight, track=input.track, user_id=info.context.user_id)
-
-        if input.copilot:
-            flight.copilot_id = await handle_copilot_edit(info.context.db, input.copilot, info.context.user_id)
-        else:
-            flight.copilot_id = None
+            await handle_track_edit(db=db, flight=flight, track=input.track, user_id=user_id)
 
         return flight
 

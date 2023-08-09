@@ -10,7 +10,7 @@ weather_api = Weather()
 
 
 async def handle_weather_info(db: AsyncSession, date_time: datetime, airport: models.Airport) -> models.WeatherInfo:
-    weather = await weather_api.get_weather_for_hour(date_time, (airport.gps_latitude, airport.gps_longitude))
+    weather = await weather_api.get_weather_for_hour(date_time.astimezone(), (airport.gps_latitude, airport.gps_longitude))
 
     return await models.WeatherInfo.create(db_session=db, data={
         "datetime": weather['datetime'],

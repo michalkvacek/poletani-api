@@ -1,11 +1,17 @@
 import dataclasses
+from typing import List, Optional
+
 import strawberry
 from fastapi_jwt import JwtAuthorizationCredentials
 from fastapi_jwt.jwt import JwtAccessBearerCookie
+from graphql import GraphQLError
+from sqlalchemy.exc import NoResultFound
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTasks
 from strawberry.extensions import SchemaExtension
 from strawberry.fastapi import BaseContext
+from strawberry.types import ExecutionContext
+
 from .mutation import Mutation
 from .query import Query
 
