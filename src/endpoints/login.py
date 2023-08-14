@@ -1,11 +1,11 @@
 from fastapi import HTTPException
 from fastapi_jwt import JwtAuthorizationCredentials
-from fastapi_jwt.jwt import JwtAccess, JwtRefresh
+
 from passlib.hash import bcrypt
 from sqlalchemy import select
 from starlette.responses import Response
 from database.models import User
-from endpoints.base import BaseEndpoint
+from endpoints.base import BaseEndpoint, AuthEndpoint
 from pydantic import BaseModel
 
 
@@ -14,13 +14,7 @@ class LoginInput(BaseModel):
     password: str
 
 
-class LoginEndpoint(BaseEndpoint):
-
-    def __init__(self, db, access_token: JwtAccess, refresh_token: JwtRefresh):
-        super().__init__(db)
-        self.access_security = access_token
-        self.refresh_security = refresh_token
-
+class LoginEndpoint(BaseEndpoint, AuthEndpoint):
     async def on_post(self, user_data: LoginInput, resp: Response) -> dict:
         query = select(User).filter_by(email=user_data.email)
         logged_user = (await self.db.scalars(query)).first()
@@ -48,11 +42,16 @@ class LoginEndpoint(BaseEndpoint):
         }
 
 
-class RefreshEndpoint(BaseEndpoint):
-    def __init__(self, access_token: JwtAccess, refresh_token: JwtRefresh):
-        super().__init__(db=None)
-        self.access_security = access_token
-        self.refresh_security = refresh_token
+class LogoutEndpoint(AuthEndpoint):
+    async def on_post(self, resp: Response):
+        self.refresh_security.unset_refresh_cookie(resp)
+
+        return {
+            "logged_out": True
+        }
+
+
+class RefreshEndpoint(AuthEndpoint):
 
     async def on_post(self, resp: Response, credentials: JwtAuthorizationCredentials):
         access_token = self.access_security.create_access_token(

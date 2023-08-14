@@ -8,6 +8,7 @@ from sqlalchemy.exc import NoResultFound
 from strawberry.file_uploads import Upload
 from database import models
 from database.models import User
+from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from upload_utils import handle_file_upload, delete_file
@@ -45,13 +46,15 @@ class UserQueries:
         )).one()
 
     @strawberry.field
+    @authenticated_user_only
+    # @error_logging
     async def logged_user(root, info) -> User:
-        if not info.context.user_id:
-            raise GraphQLError("Not authenticated")
-
-        return (await info.context.db.scalars(
+        user = (await info.context.db.scalars(
             select(models.User).filter_by(id=info.context.user_id)
         )).one()
+
+        print(user)
+        return user
 
 
 @strawberry.type
@@ -68,6 +71,7 @@ class EditUserMutation:
         title_image: Optional[Upload] = None
 
     @strawberry.mutation
+    @authenticated_user_only
     async def edit_logged_user(root, info, input: EditUserInput) -> User:
         user = (await info.context.db.scalars(
             select(models.User).filter_by(id=info.context.user_id)

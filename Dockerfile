@@ -1,4 +1,4 @@
-FROM python:3.10-alpine
+FROM python:3.11-alpine
 
 RUN apk update && \
     apk add --no-cache tzdata mariadb-client mariadb-dev && \
@@ -13,7 +13,7 @@ RUN delgroup www-data && addgroup -g 33 -S www-data && adduser -u 33 -D -S -G ww
 COPY requirements.txt /app/requirements.txt
 
 # required packages for pip (becasue of yarl lib)
-ENV INSTALL_PACKAGES build-base linux-headers git
+ENV INSTALL_PACKAGES build-base linux-headers
 
 RUN apk add --no-cache $INSTALL_PACKAGES
 RUN pip install --no-cache-dir -r /app/requirements.txt

@@ -1,17 +1,15 @@
-import time
 from datetime import timedelta
-from fastapi import FastAPI, APIRouter, Depends, Security, HTTPException
+from fastapi import FastAPI, APIRouter, Depends, Security
 from fastapi_jwt import JwtAuthorizationCredentials, JwtAccessBearerCookie, JwtRefreshBearerCookie
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTasks
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse, Response
 from starlette.staticfiles import StaticFiles
-from starlette.status import HTTP_401_UNAUTHORIZED
 from strawberry.fastapi import GraphQLRouter
 from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG
 from dependencies.db import db_session
-from endpoints.login import LoginEndpoint, LoginInput, RefreshEndpoint
+from endpoints.login import LoginEndpoint, LoginInput, RefreshEndpoint, LogoutEndpoint
 from endpoints.registration import RegistrationInput, RegistrationEndpoint
 from graphql_schema.schema import schema, GraphQLContext
 
@@ -21,11 +19,12 @@ class App:
     access_security = JwtAccessBearerCookie(
         secret_key=APP_SECRET_KEY,
         auto_error=False,
-        access_expires_delta=timedelta(minutes=20)
+        access_expires_delta=timedelta(seconds=20),
     )
     refresh_security = JwtRefreshBearerCookie(
         secret_key=APP_SECRET_KEY,
-        auto_error=True
+        auto_error=True,
+        refresh_expires_delta=timedelta(days=30),
     )
 
     def create_app(self):
@@ -58,24 +57,14 @@ class App:
         app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
     def setup_graphql_endpoint(self, app: FastAPI):
-        if APP_DEBUG:
-            @self.api_router.get("/graphql/autologin")
-            async def autologin():
-                access_token = self.access_security.create_access_token(subject={"id": 18, "name": "Franta Vomacka"})
-
-                response = RedirectResponse(url="/graphql")
-                self.access_security.set_access_cookie(response, access_token)
-
-                return response
-
         def setup_graphql_context(
                 credentials: JwtAuthorizationCredentials = Security(self.access_security),
                 db: AsyncSession = Depends(db_session)
         ):
             return GraphQLContext(
-                jwt_auth_credentials=credentials,
-                user_id=credentials['id'] if credentials else None,
                 db=db,
+                user_id=credentials['id'] if credentials else None,
+                jwt_auth_credentials=credentials,
                 jwt=self.access_security,
                 background_tasks=Depends(BackgroundTasks)
             )
@@ -89,20 +78,39 @@ class App:
         app.include_router(graphql_app, prefix="/graphql")
 
     def setup_routes(self, app: FastAPI):
-        # protected endpoints
-        @app.post("/refresh")
+        self.setup_graphql_endpoint(app)
+
+        if APP_DEBUG:
+            @self.api_router.get("/graphql/autologin")
+            async def autologin():
+                access_token = self.access_security.create_access_token(subject={"id": 18, "name": "Franta Vomacka"})
+
+                response = RedirectResponse(url="/graphql")
+                self.access_security.set_access_cookie(response, access_token, expires_delta=timedelta(days=14))
+
+                return response
+
+        @self.api_router.post("/refresh")
         async def refresh(
                 resp: Response,
                 credentials: JwtAuthorizationCredentials = Security(self.refresh_security)
         ):
-            return await RefreshEndpoint(self.access_security, self.refresh_security).on_post(resp, credentials)
+            return await RefreshEndpoint(
+                access_token=self.access_security,
+                refresh_token=self.refresh_security
+            ).on_post(resp, credentials)
 
-        self.setup_graphql_endpoint(app)
-
-        # public endpoints
         @self.api_router.post("/login")
         async def login(resp: Response, user: LoginInput, db: AsyncSession = Depends(db_session)):
-            return await LoginEndpoint(db, self.access_security, self.refresh_security).on_post(user, resp)
+            return await LoginEndpoint(
+                db=db,
+                access_token=self.access_security,
+                refresh_token=self.refresh_security
+            ).on_post(user, resp)
+
+        @self.api_router.post("/logout")
+        async def login(resp: Response):
+            return await LogoutEndpoint(access_token=self.access_security, refresh_token=self.refresh_security).on_post(resp)
 
         @self.api_router.post("/registration", status_code=201)
         async def registration(user: RegistrationInput, db: AsyncSession = Depends(db_session)):

@@ -1,9 +1,13 @@
 from datetime import timedelta
+from functools import wraps
 from typing import List, Optional, Annotated, TYPE_CHECKING, Tuple
 import strawberry
+from fastapi import HTTPException
 from sqlalchemy import select
+from starlette.status import HTTP_401_UNAUTHORIZED
 from strawberry.file_uploads import Upload
 from database import models
+from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
 from graphql_schema.dataloaders import copilots_dataloader
 from graphql_schema.dataloaders.aircraft import aircraft_dataloader
@@ -119,6 +123,9 @@ class FlightQueries:
 
     @strawberry.field
     async def flights(root, info, username: Optional[str] = None) -> List[Flight]:
+        if not info.context.user_id and not username:
+            raise HTTPException(HTTP_401_UNAUTHORIZED)
+
         query = (
             get_base_query(user_id=info.context.user_id, username=username, is_auth=bool(info.context.user_id))
             .order_by(models.Flight.id.desc())
@@ -128,6 +135,9 @@ class FlightQueries:
     @strawberry.field
     @error_logging
     async def flight(root, info, id: int, username: Optional[str] = None) -> Flight:
+        if not info.context.user_id and not username:
+            raise HTTPException(HTTP_401_UNAUTHORIZED)
+
         query = (
             get_base_query(user_id=info.context.user_id, username=username, is_auth=bool(info.context.user_id))
             .filter(models.Flight.id == id)
@@ -163,6 +173,7 @@ class CreateFlightMutation:
         takeoff_airport: ComboboxInput
 
     @strawberry.mutation
+    @authenticated_user_only
     async def create_flight(self, info, input: CreateFlightInput) -> Flight:
         db = info.context.db
         aircraft_id = await handle_aircraft_save(db, info.context.user_id, input.aircraft)
@@ -187,6 +198,7 @@ class CreateFlightMutation:
         })
 
 
+
 @strawberry.type
 class EditFlightMutation:
     @strawberry_sqlalchemy_input(models.Flight, exclude_fields=[
@@ -202,6 +214,7 @@ class EditFlightMutation:
         takeoff_airport: Optional[ComboboxInput] = None
 
     @strawberry.mutation
+    @authenticated_user_only
     async def edit_flight(self, info, id: int, input: EditFlightInput) -> Flight:
         db = info.context.db
         user_id = info.context.user_id
@@ -212,8 +225,11 @@ class EditFlightMutation:
         )).one()
 
         data = input.to_dict()
-        data['takeoff_datetime'] = data['takeoff_datetime'].astimezone()
-        data['landing_datetime'] = data['landing_datetime'].astimezone()
+
+        if input.takeoff_datetime:
+            data['takeoff_datetime'] = data['takeoff_datetime'].astimezone()
+        if input.landing_datetime:
+            data['landing_datetime'] = data['landing_datetime'].astimezone()
 
         if input.gpx_track is not None:
             # TODO: poresit validaci uploadovaneho souboru!

@@ -20,6 +20,18 @@ services:
     environment:
       TZ: "Europe/Prague"
 
+  scrapy:
+    build:
+      context: ../crawlers
+    environment:
+      - MYSQL_USER=root
+      - MYSQL_PASSWORD=
+      - MYSQL_DATABASE=ull_tracker
+      - MYSQL_HOST=db
+    volumes:
+      - db-data:/var/lib/mysql:rw
+      - ../crawlers:/app
+
   nginx:
     image: nginx:alpine
     restart: always
@@ -28,5 +40,6 @@ services:
       - ./uploads:/app/uploads
     ports:
       - "8999:8999"
+
 volumes:
   db-data: { }

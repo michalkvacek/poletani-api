@@ -1,5 +1,6 @@
 from functools import wraps
 from graphql import GraphQLError
+from sqlalchemy.exc import NoResultFound
 
 
 def error_logging(func):
@@ -7,7 +8,7 @@ def error_logging(func):
     async def decorator(*args, **kwargs):
         try:
             return await func(*args, **kwargs)
-        except Exception as e:
-            raise GraphQLError(f"Not found")
+        except NoResultFound as e:
+            raise GraphQLError(f"Not found", original_error=e)
 
     return decorator
