@@ -110,11 +110,14 @@ class App:
 
         @self.api_router.post("/logout")
         async def login(resp: Response):
-            return await LogoutEndpoint(access_token=self.access_security, refresh_token=self.refresh_security).on_post(resp)
+            return await LogoutEndpoint(
+                access_token=self.access_security,
+                refresh_token=self.refresh_security
+            ).on_post(resp)
 
         @self.api_router.post("/registration", status_code=201)
         async def registration(user: RegistrationInput, db: AsyncSession = Depends(db_session)):
-            return await RegistrationEndpoint(db).on_post(user)
+            return await RegistrationEndpoint(db=db).on_post(user)
 
         # musi byt na konci
         app.include_router(self.api_router)

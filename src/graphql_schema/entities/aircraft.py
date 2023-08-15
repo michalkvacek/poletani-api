@@ -3,6 +3,7 @@ import strawberry
 from strawberry.file_uploads import Upload
 from sqlalchemy import select
 from database import models
+from decorators.endpoints import authenticated_user_only
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from upload_utils import handle_file_upload, delete_file, get_public_url
 from ..dataloaders.flight import flights_by_aircraft_dataloader
@@ -37,6 +38,7 @@ def get_base_query(user_id: int):
 class AircraftQueries:
 
     @strawberry.field
+    @authenticated_user_only
     async def aircrafts(root, info) -> List[Aircraft]:
         query = (
             get_base_query(info.context.user_id)
@@ -46,6 +48,7 @@ class AircraftQueries:
         return (await info.context.db.scalars(query)).all()
 
     @strawberry.field
+    @authenticated_user_only
     async def aircraft(root, info, id: int) -> Aircraft:
         query = (
             get_base_query(info.context.user_id)
@@ -61,6 +64,7 @@ class CreateAircraftMutation:
         photo: Optional[Upload]
 
     @strawberry.mutation
+    @authenticated_user_only
     async def create_aircraft(root, info, input: CreateAircraftInput) -> Aircraft:
         # TODO: kontrola organizace
 
@@ -84,6 +88,7 @@ class EditAircraftMutation:
         photo: Optional[Upload]
 
     @strawberry.mutation
+    @authenticated_user_only
     async def edit_aircraft(root, info, id: int, input: EditAircraftInput) -> Aircraft:
         # TODO: kontrola organizace
         # TODO: kontrola opravneni na akci
@@ -103,6 +108,7 @@ class EditAircraftMutation:
 class DeleteAircraftMutation:
 
     @strawberry.mutation
+    @authenticated_user_only
     async def delete_aircraft(self, info, id: int) -> Aircraft:
         # TODO: kontrola opravneni na akci
 

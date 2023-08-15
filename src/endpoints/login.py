@@ -1,6 +1,5 @@
 from fastapi import HTTPException
 from fastapi_jwt import JwtAuthorizationCredentials
-
 from passlib.hash import bcrypt
 from sqlalchemy import select
 from starlette.responses import Response
@@ -14,7 +13,7 @@ class LoginInput(BaseModel):
     password: str
 
 
-class LoginEndpoint(BaseEndpoint, AuthEndpoint):
+class LoginEndpoint(AuthEndpoint, BaseEndpoint):
     async def on_post(self, user_data: LoginInput, resp: Response) -> dict:
         query = select(User).filter_by(email=user_data.email)
         logged_user = (await self.db.scalars(query)).first()

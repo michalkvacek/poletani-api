@@ -32,13 +32,13 @@ class RegistrationEndpoint(BaseEndpoint):
         if existing_user:
             raise HTTPException(status_code=422, detail="User already exists")
 
-        model = User(
-            name=user_data.name,
-            email=user_data.email,
-            password_hashed=bcrypt.hash(user_data.password)
-        )
+        model = await User.create(self.db, {
+            "name": user_data.name,
+            "email": user_data.email,
+            "password_hashed": bcrypt.hash(user_data.password),
+            "description": ""
+        })
 
-        self.db.add(model)
         await self.db.commit()
 
         return model.as_dict()
