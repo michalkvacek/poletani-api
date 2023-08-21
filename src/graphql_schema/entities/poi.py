@@ -2,6 +2,7 @@ from typing import List
 import strawberry
 from sqlalchemy import select, or_
 from database import models
+from decorators.endpoints import authenticated_user_only
 from graphql_schema.dataloaders.photos import poi_photos_dataloader
 from graphql_schema.entities.photo import Photo
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
@@ -36,6 +37,7 @@ def get_base_query(user_id: int, only_my: bool = False):
 class PointOfInterestQueries:
 
     @strawberry.field
+    @authenticated_user_only()
     async def points_of_interest(root, info) -> List[PointOfInterest]:
         query = (
             get_base_query(info.context.user_id)
@@ -45,6 +47,7 @@ class PointOfInterestQueries:
         return (await info.context.db.scalars(query)).all()
 
     @strawberry.field
+    @authenticated_user_only()
     async def point_of_interest(root, info, id: int) -> PointOfInterest:
         query = (
             get_base_query(info.context.user_id)
@@ -60,6 +63,7 @@ class CreatePointOfInterestMutation:
         pass
 
     @strawberry.mutation
+    @authenticated_user_only()
     async def create_point_of_interest(root, info, input: CreatePointOfInterestInput) -> PointOfInterest:
         input_data = input.to_dict()
         return await models.PointOfInterest.create(
@@ -78,6 +82,7 @@ class EditPointOfInterestMutation:
         pass
 
     @strawberry.mutation
+    @authenticated_user_only()
     async def edit_point_of_interest(root, info, id: int, input: EditPointOfInterestInput) -> PointOfInterest:
         # TODO: kontrola organizace
         # TODO: kontrola opravneni na akci
@@ -94,7 +99,8 @@ class EditPointOfInterestMutation:
 class DeletePointOfInterestMutation:
 
     @strawberry.mutation
+    @authenticated_user_only()
     async def delete_point_of_interest(self, info, id: int) -> PointOfInterest:
-        poi = (await get_base_query(info.context.user_id, only_my=True).filter(models.PointOfInterest.id == id)).one()
+        poi = get_base_query(info.context.user_id, only_my=True).filter(models.PointOfInterest.id == id).one()
 
         return await models.PointOfInterest.update(info.context.db, obj=poi, data=dict(deleted=True))

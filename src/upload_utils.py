@@ -6,10 +6,11 @@ import exif
 from PIL import Image, UnidentifiedImageError
 from strawberry.file_uploads import Upload
 
+from config import API_URL
+
 
 def get_public_url(filename: Optional[str]):
-    # TODO: pouzit staticfiles z /uploads - port na API, nginx nebude potreba (pro dev)
-    return f"http://localhost:8999/{filename}" if filename else None
+    return f"{API_URL}/uploads/{filename}" if filename else None
 
 
 def check_directories(path: str):

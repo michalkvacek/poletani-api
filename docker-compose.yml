@@ -19,6 +19,8 @@ services:
       - .:/app
     environment:
       TZ: "Europe/Prague"
+      API_URL: "http://localhost:8000"
+      ALLOW_CORS_ORIGINS: "http://localhost:9000 http://localhost:9001"
 
   scrapy:
     build:
@@ -31,15 +33,6 @@ services:
     volumes:
       - db-data:/var/lib/mysql:rw
       - ../crawlers:/app
-
-  nginx:
-    image: nginx:alpine
-    restart: always
-    volumes:
-      - ./config/nginx.dev.yml:/etc/nginx/conf.d/app-dev.conf
-      - ./uploads:/app/uploads
-    ports:
-      - "8999:8999"
 
 volumes:
   db-data: { }

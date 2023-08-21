@@ -1,10 +1,14 @@
+import asyncio
 from datetime import datetime
-from typing import List, Type
+from typing import List, Type, Literal, Optional, Tuple
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from strawberry.file_uploads import Upload
+
 from database import models
 from external.weather import Weather
 from graphql_schema.types import ComboboxInput
+from upload_utils import delete_file, file_exists, handle_file_upload
 
 weather_api = Weather()
 
@@ -74,8 +78,52 @@ async def handle_aircraft_save(db: AsyncSession, user_id: int, aircraft: Combobo
         return obj.id
 
 
-async def handle_copilot_edit(db: AsyncSession, copilot: ComboboxInput, user_id: int) -> int:
-    return await handle_combobox_save(db, models.Copilot, copilot, user_id)
+async def get_airports(db, takeoff_airport_id: int, landing_airport_id: int) -> Tuple[models.Airport, models.Airport]:
+    takeoff_airport = (await db.scalars(
+        select(models.Airport).filter(models.Airport.id == takeoff_airport_id)
+    )).one()
+
+    if takeoff_airport_id == landing_airport_id:
+        landing_airport = takeoff_airport
+    else:
+        landing_airport = (await db.scalars(
+            select(models.Airport).filter(models.Airport.id == landing_airport_id)
+        )).one()
+
+    return takeoff_airport, landing_airport
+
+
+async def handle_airport_changed(
+        db, flight: models.Flight, airport: models.Airport, type_: Literal['takeoff', 'landing'],
+        input_datetime: Optional[datetime]
+):
+    flight_datetime = getattr(flight, f"{type_}_datetime")
+    if input_datetime and input_datetime != flight_datetime:
+        weather = await handle_weather_info(db, input_datetime, airport)
+
+        existing_weather_id = getattr(flight, f"{type_}_weather_info_id")
+        if existing_weather_id:
+            # db.delete(delete())
+            pass
+
+        setattr(flight, f"{type_}_weather_info_id", weather.id)
+
+    setattr(flight, f"{type_}_airport_id", airport.id)
+    setattr(flight, f"{type_}_datetime", input_datetime)
+
+
+async def handle_upload_gpx(flight: models.Flight, gpx_track: Upload):
+    path = "/app/uploads/tracks"
+
+    if flight.gpx_track_filename and file_exists(path + "/" + flight.gpx_track_filename):
+        delete_file(path + "/" + flight.gpx_track_filename)
+
+    return await handle_file_upload(gpx_track, path)
+
+
+async def handle_copilots_edit(db: AsyncSession, copilots: List[ComboboxInput], user_id: int) -> List[int]:
+    cors = [handle_combobox_save(db, models.Copilot, copilot, user_id) for copilot in copilots]
+    return await asyncio.gather(*cors)
 
 
 async def handle_combobox_save(
@@ -83,7 +131,7 @@ async def handle_combobox_save(
         input: ComboboxInput,
         user_id: int,
         name_column: str = "name"
-):
+) -> int:
     if input.id:
         return input.id
     else:

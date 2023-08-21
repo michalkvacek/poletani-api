@@ -37,8 +37,8 @@ def get_base_query(user_id: int):
 @strawberry.type
 class AircraftQueries:
 
-    @strawberry.field
-    @authenticated_user_only
+    @strawberry.field()
+    @authenticated_user_only()
     async def aircrafts(root, info) -> List[Aircraft]:
         query = (
             get_base_query(info.context.user_id)
@@ -47,8 +47,8 @@ class AircraftQueries:
 
         return (await info.context.db.scalars(query)).all()
 
-    @strawberry.field
-    @authenticated_user_only
+    @strawberry.field()
+    @authenticated_user_only()
     async def aircraft(root, info, id: int) -> Aircraft:
         query = (
             get_base_query(info.context.user_id)
@@ -64,7 +64,7 @@ class CreateAircraftMutation:
         photo: Optional[Upload]
 
     @strawberry.mutation
-    @authenticated_user_only
+    @authenticated_user_only()
     async def create_aircraft(root, info, input: CreateAircraftInput) -> Aircraft:
         # TODO: kontrola organizace
 
@@ -88,7 +88,7 @@ class EditAircraftMutation:
         photo: Optional[Upload]
 
     @strawberry.mutation
-    @authenticated_user_only
+    @authenticated_user_only()
     async def edit_aircraft(root, info, id: int, input: EditAircraftInput) -> Aircraft:
         # TODO: kontrola organizace
         # TODO: kontrola opravneni na akci
@@ -108,7 +108,7 @@ class EditAircraftMutation:
 class DeleteAircraftMutation:
 
     @strawberry.mutation
-    @authenticated_user_only
+    @authenticated_user_only()
     async def delete_aircraft(self, info, id: int) -> Aircraft:
         # TODO: kontrola opravneni na akci
 

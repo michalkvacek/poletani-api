@@ -9,7 +9,6 @@ RUN deluser xfs
 # uzivatel www-data v alpine neexistuje
 RUN delgroup www-data && addgroup -g 33 -S www-data && adduser -u 33 -D -S -G www-data www-data
 
-
 COPY requirements.txt /app/requirements.txt
 
 # required packages for pip (becasue of yarl lib)
@@ -24,4 +23,4 @@ COPY . /app
 
 WORKDIR /app
 
-CMD ["uvicorn", "src.asgi:app", "--reload", "--port=8000", "--host=0.0.0.0", "--log-level=debug"]
+CMD ["uvicorn", "src.asgi:app", "--reload", "--reload-dir=/app", "--port=8000", "--host=0.0.0.0", "--log-level=debug"]

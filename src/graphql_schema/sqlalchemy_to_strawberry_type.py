@@ -1,4 +1,5 @@
 import typing
+from datetime import datetime
 from typing import List, Optional
 import strawberry
 import sqlalchemy
@@ -44,18 +45,24 @@ def strawberry_sqlalchemy_type(model, exclude_fields: Optional[typing.Union[List
 def strawberry_sqlalchemy_input(
         model,
         exclude_fields: Optional[typing.Union[List, typing.Tuple]] = None,
-        all_optional: bool = False):
+        all_optional: bool = False) -> typing.Callable[[...], strawberry.object_type]:
     if exclude_fields is None:
         exclude_fields = []
 
     ignored_fields = exclude_fields + ["created_at", "created_by_id", "updated_by_id", "updated_at", "deleted"]
 
     def to_dict(self):
-        return {
-            name: getattr(self, name)
-            for name, _ in get_columns_from_model(model, ignored_fields)
-            if getattr(self, name) is not None
-        }
+        dict_data = {}
+        for key, _ in get_columns_from_model(model, ignored_fields):
+            value = getattr(self, key)
+            if value is None:
+                continue
+
+            if isinstance(value, datetime):
+                value = value.astimezone()
+
+            dict_data[key] = value
+        return dict_data
 
     def wrapper(cls):
         annotations = get_annotations_for_scalars(

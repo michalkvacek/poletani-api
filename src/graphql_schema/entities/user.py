@@ -4,30 +4,29 @@ import strawberry
 from graphql import GraphQLError
 from passlib.hash import bcrypt
 from sqlalchemy import select
-from sqlalchemy.exc import NoResultFound
 from strawberry.file_uploads import Upload
+from config import API_URL
 from database import models
 from database.models import User
 from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
-from upload_utils import handle_file_upload, delete_file
+from upload_utils import handle_file_upload, delete_file, get_public_url
 
 
 @strawberry_sqlalchemy_type(User, exclude_fields=['password_hashed'])
 class User:
-
     async def load_avatar_image_url(root):
         if not root.avatar_image_filename:
             return None
 
-        return f"http://localhost:8000/uploads/profile/{root.id}/{root.avatar_image_filename}"
+        return get_public_url(f"profile/{root.id}/{root.avatar_image_filename}")
 
     async def load_title_image_url(root):
         if not root.title_image_filename:
-            return "http://localhost:8000/static/default-title-image.jpg"
+            return f"{API_URL}/static/default-title-image.jpg"
 
-        return f"http://localhost:8000/uploads/profile/{root.id}/{root.title_image_filename}"
+        return get_public_url(f"profile/{root.id}/{root.title_image_filename}")
 
     avatar_image_url: Optional[str] = strawberry.field(resolver=load_avatar_image_url)
     title_image_url: str = strawberry.field(resolver=load_title_image_url)
@@ -35,19 +34,17 @@ class User:
 
 @strawberry.type
 class UserQueries:
-    @strawberry.field
+    @strawberry.field()
     @error_logging
     async def user(root, info, username: str) -> User:
         if len(username) == 0:
             raise GraphQLError("Username not set!")
 
-        return (await info.context.db.scalars(
-            select(models.User).filter_by(public_username=username)
-        )).one()
+        return (await info.context.db.scalars(select(models.User).filter_by(public_username=username))).one()
 
-    @strawberry.field
-    @authenticated_user_only
-    # @error_logging
+    @strawberry.field()
+    @authenticated_user_only()
+    @error_logging
     async def logged_user(root, info) -> User:
         user = (await info.context.db.scalars(
             select(models.User).filter_by(id=info.context.user_id)
@@ -71,7 +68,7 @@ class EditUserMutation:
         title_image: Optional[Upload] = None
 
     @strawberry.mutation
-    @authenticated_user_only
+    @authenticated_user_only()
     async def edit_logged_user(root, info, input: EditUserInput) -> User:
         user = (await info.context.db.scalars(
             select(models.User).filter_by(id=info.context.user_id)

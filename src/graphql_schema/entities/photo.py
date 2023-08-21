@@ -3,6 +3,7 @@ import strawberry
 from sqlalchemy import select, update
 from strawberry.file_uploads import Upload
 from database import models
+from decorators.endpoints import authenticated_user_only
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from upload_utils import get_public_url, handle_file_upload, delete_file, parse_exif_info, generate_thumbnail, file_exists
 
@@ -37,7 +38,7 @@ def get_photo_basepath(flight_id: int) -> str:
 
 @strawberry.type
 class PhotoQueries:
-    @strawberry.field
+    @strawberry.field()
     async def photos(root, info) -> List[Photo]:
         query = get_base_query(info.context.user_id)
         return (await info.context.db.scalars(query)).all()
@@ -52,6 +53,7 @@ class UploadPhotoMutation:
         photo: Upload
 
     @strawberry.mutation
+    @authenticated_user_only()
     async def upload_photo(self, info, input: UploadPhotoInput) -> Photo:
         path = get_photo_basepath(input.flight_id)
         filename = await handle_file_upload(input.photo, path)
@@ -81,7 +83,8 @@ class EditPhotoMutation:
     class EditPhotoInput:
         pass
 
-    @strawberry.mutation
+    @strawberry.mutation()
+    @authenticated_user_only()
     async def edit_photo(self, info, id: int, input: EditPhotoInput) -> Photo:
         query = get_base_query(info.context.user_id)
         photo = (await info.context.db.scalars(query.filter(models.Photo.id == id))).one()
@@ -102,7 +105,8 @@ class EditPhotoMutation:
 
 @strawberry.type
 class DeletePhotoMutation:
-    @strawberry.mutation
+    @strawberry.mutation()
+    @authenticated_user_only()
     async def delete_photo(self, info, id: int) -> Photo:
         query = get_base_query(info.context.user_id)
         photo = (await info.context.db.scalars(query.filter(models.Photo.id == id))).one()
@@ -110,7 +114,7 @@ class DeletePhotoMutation:
         base_path = get_photo_basepath(photo.flight_id)
         try:
             delete_file(f"{base_path}/{photo.filename}")
-            # TODO: odstranit nahledy
+            delete_file(f"{base_path}/thumbs/{photo.filename}")
         except Exception as e:
             print("ERROR", e)
 

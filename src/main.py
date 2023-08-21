@@ -7,7 +7,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse, Response
 from starlette.staticfiles import StaticFiles
 from strawberry.fastapi import GraphQLRouter
-from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG
+from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG, ALLOW_CORS_ORIGINS
 from dependencies.db import db_session
 from endpoints.login import LoginEndpoint, LoginInput, RefreshEndpoint, LogoutEndpoint
 from endpoints.registration import RegistrationInput, RegistrationEndpoint
@@ -19,7 +19,7 @@ class App:
     access_security = JwtAccessBearerCookie(
         secret_key=APP_SECRET_KEY,
         auto_error=False,
-        access_expires_delta=timedelta(seconds=20),
+        access_expires_delta=timedelta(minutes=20),
     )
     refresh_security = JwtRefreshBearerCookie(
         secret_key=APP_SECRET_KEY,
@@ -45,7 +45,7 @@ class App:
     def setup_middleware(app: FastAPI):
         app.add_middleware(
             CORSMiddleware,
-            allow_origins=["http://localhost:9001"],  # TODO: pridat pres ENV URL produkce
+            allow_origins=ALLOW_CORS_ORIGINS,
             allow_credentials=True,
             allow_methods=["*"],
             allow_headers=["*"],
@@ -83,7 +83,7 @@ class App:
         if APP_DEBUG:
             @self.api_router.get("/graphql/autologin")
             async def autologin():
-                access_token = self.access_security.create_access_token(subject={"id": 18, "name": "Franta Vomacka"})
+                access_token = self.access_security.create_access_token(subject={"id": 1, "name": "Franta Vomacka"})
 
                 response = RedirectResponse(url="/graphql")
                 self.access_security.set_access_cookie(response, access_token, expires_delta=timedelta(days=14))

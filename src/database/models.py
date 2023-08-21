@@ -8,8 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 @as_declarative()
 class BaseModel:
-    # __mapper_args__ = {"eager_defaults": True}
-
     excluded_columns_in_dict = tuple()
 
     def as_dict(self):
@@ -52,13 +50,20 @@ user_is_in_organization = Table(
     Column("organization_id", Integer, ForeignKey("organization.id"), primary_key=True)
 )
 
+flight_has_copilot = Table(
+    "flight_has_copilot",
+    BaseModel.metadata,
+    Column("flight_id", ForeignKey("flight.id"), primary_key=True),
+    Column("copilot_id", ForeignKey("copilot.id"), primary_key=True),
+)
+
 
 class Airport(BaseModel):
     __tablename__ = "airport"
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    icao_code: Mapped[str] = mapped_column(String(4), nullable=False)
+    icao_code: Mapped[str] = mapped_column(String(8), nullable=False)
     gps_latitude: Mapped[float] = mapped_column(Float, nullable=False)
     gps_longitude: Mapped[float] = mapped_column(Float, nullable=False)
     elevation: Mapped[int] = mapped_column(Integer, nullable=True)
@@ -132,6 +137,7 @@ class Aircraft(BaseModel):
     photo_filename: Mapped[str] = mapped_column(String(128), nullable=True)
     manufacturer: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     model: Mapped[str] = mapped_column(String(30), nullable=False, server_default="")
+    seats: Mapped[str] = mapped_column(Integer, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     organization_id: Mapped[int] = mapped_column(Integer, ForeignKey('organization.id'), nullable=True)
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'), nullable=False)
@@ -213,9 +219,8 @@ class Flight(BaseModel):
     duration_pic: Mapped[int] = mapped_column(Integer, nullable=True)
     gpx_track_filename: Mapped[str] = mapped_column(String(128), nullable=True)
     aircraft_id: Mapped[int] = mapped_column(Integer, ForeignKey('aircraft.id'))
-    copilot_id: Mapped[int] = mapped_column(Integer, ForeignKey('copilot.id'), nullable=True)
-    weather_info_takeoff_id: Mapped[int] = mapped_column(Integer, ForeignKey('weather_info.id'), nullable=True)
-    weather_info_landing_id: Mapped[int] = mapped_column(Integer, ForeignKey('weather_info.id'), nullable=True)
+    takeoff_weather_info_id: Mapped[int] = mapped_column(Integer, ForeignKey('weather_info.id'), nullable=True)
+    landing_weather_info_id: Mapped[int] = mapped_column(Integer, ForeignKey('weather_info.id'), nullable=True)
     landings: Mapped[int] = mapped_column(Integer, default=1)
     is_public: Mapped[bool] = mapped_column(Boolean, server_default='0')
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
@@ -224,13 +229,12 @@ class Flight(BaseModel):
 
     takeoff_airport: Mapped['Airport'] = relationship(foreign_keys=[takeoff_airport_id])
     landing_airport: Mapped['Airport'] = relationship(foreign_keys=[landing_airport_id])
-    weather_info_landing: Mapped[WeatherInfo] = relationship(foreign_keys=[weather_info_landing_id])
-    weather_info_takeoff: Mapped[WeatherInfo] = relationship(foreign_keys=[weather_info_takeoff_id])
+    weather_info_landing: Mapped[WeatherInfo] = relationship(foreign_keys=[landing_weather_info_id])
+    weather_info_takeoff: Mapped[WeatherInfo] = relationship(foreign_keys=[takeoff_weather_info_id])
     track: Mapped['FlightTrack'] = relationship()
-    copilot: Mapped['Copilot'] = relationship(back_populates="flights")
+    copilots: Mapped[List['Copilot']] = relationship(secondary=flight_has_copilot)
     aircraft: Mapped['Aircraft'] = relationship(back_populates="flights")
     photos: Mapped[List['Photo']] = relationship(foreign_keys=[Photo.flight_id])
-    user: Mapped['User'] = relationship(back_populates="flights")
     created_by: Mapped['User'] = relationship()
 
 
@@ -243,7 +247,7 @@ class Copilot(BaseModel):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
 
-    flights: Mapped[Set['Flight']] = relationship(back_populates="copilot")
+    flights: Mapped[Set['Flight']] = relationship(secondary=flight_has_copilot)
     created_by: Mapped['User'] = relationship()
 
 
@@ -287,6 +291,6 @@ class User(BaseModel):
     password_hashed: Mapped[str] = mapped_column(String(60), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
-    licences: Mapped[Set['License']] = relationship(back_populates="user")
-    flights: Mapped[Set['Flight']] = relationship(back_populates="user")
-    organizations: Mapped[Set['Organization']] = relationship(back_populates="users", secondary=user_is_in_organization)
+    licences: Mapped[Set['License']] = relationship()
+    flights: Mapped[Set['Flight']] = relationship()
+    organizations: Mapped[Set['Organization']] = relationship(secondary=user_is_in_organization)

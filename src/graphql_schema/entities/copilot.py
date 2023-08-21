@@ -2,6 +2,7 @@ from typing import List, Annotated, TYPE_CHECKING
 import strawberry
 from sqlalchemy import select
 from database import models
+from decorators.endpoints import authenticated_user_only
 from graphql_schema.dataloaders.flight import flights_by_copilot_dataloader
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 
@@ -28,13 +29,15 @@ def get_base_query(user_id: int):
 
 @strawberry.type
 class CopilotQueries:
-    @strawberry.field
+    @strawberry.field()
+    @authenticated_user_only()
     async def copilots(root, info) -> List[Copilot]:
         return (await info.context.db.scalars(
             get_base_query(info.context.user_id)
         )).all()
 
-    @strawberry.field
+    @strawberry.field()
+    @authenticated_user_only()
     async def copilot(root, info, id: int) -> Copilot:
         return (await info.context.db.scalars(
             get_base_query(info.context.user_id)
@@ -50,6 +53,7 @@ class CreateCopilotMutation:
         pass
 
     @strawberry.mutation
+    @authenticated_user_only()
     async def create_copilot(root, info, input: CreateCopilotInput) -> Copilot:
         input_data = input.to_dict()
         return await models.Copilot.create(
@@ -69,6 +73,7 @@ class EditCopilotMutation:
         pass
 
     @strawberry.mutation
+    @authenticated_user_only()
     async def edit_copilot(root, info, id: int, input: EditCopilotInput) -> Copilot:
         copilot = (await info.context.db.scalars(
             get_base_query(info.context.user_id).filter(models.Copilot.id == id)

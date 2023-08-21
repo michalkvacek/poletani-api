@@ -1,9 +1,10 @@
 from fastapi_jwt.jwt import JwtAccess, JwtRefresh
 
 
-class BaseEndpoint:
+class BaseEndpoint(object):
     def __init__(self, db):
         self.db = db
+        super().__init__()
 
 
 class AuthEndpoint:
