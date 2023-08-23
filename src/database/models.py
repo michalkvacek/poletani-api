@@ -81,12 +81,14 @@ class PointOfInterestType(BaseModel):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
+    icon: Mapped[str] = mapped_column(String(128), nullable=False, server_default='marker')
     is_public: Mapped[bool] = mapped_column(Boolean, server_default='0')
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
 
     created_by: Mapped['User'] = relationship()
+    points_of_interest: Mapped[List[PointOfInterest]] = relationship()
 
 
 class PointOfInterest(BaseModel):
@@ -94,6 +96,7 @@ class PointOfInterest(BaseModel):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
     gps_latitude: Mapped[float] = mapped_column(Float, nullable=True)
     gps_longitude: Mapped[float] = mapped_column(Float, nullable=True)
     type_id: Mapped[int] = mapped_column(Integer, ForeignKey("point_of_interest_type.id"), nullable=True)

@@ -3,7 +3,7 @@ from typing import List
 from sqlalchemy import select
 from strawberry.dataloader import DataLoader
 from database import async_session
-from database.models import PointOfInterest, FlightTrack
+from database.models import PointOfInterest, FlightTrack, PointOfInterestType
 
 
 async def load_flight_track(flight_ids: List[int]):
@@ -33,4 +33,13 @@ async def load_poi(ids: List[int]):
         return [models_by_id.get(id_) for id_ in ids]
 
 
+async def load_poi_type(ids: List[int]):
+    async with async_session() as session:
+        models = (await session.scalars(select(PointOfInterestType).filter(PointOfInterestType.id.in_(ids)))).all()
+
+        models_by_id = {model.id: model for model in models}
+        return [models_by_id.get(id_) for id_ in ids]
+
+
 poi_dataloader = DataLoader(load_fn=load_poi, cache=False)
+poi_type_dataloader = DataLoader(load_fn=load_poi_type, cache=False)
