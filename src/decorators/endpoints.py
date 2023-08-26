@@ -17,7 +17,6 @@ def authenticated_user_only(raise_when_unauthorized: bool = True, return_value_u
                         raise HTTPException(HTTP_401_UNAUTHORIZED, "Not authorized")
                     else:
                         return return_value_unauthorized
-
             return await func(*args, **kwargs)
 
         return decorator

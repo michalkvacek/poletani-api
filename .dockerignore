@@ -1,0 +1,5 @@
+.mypy_cache
+venv
+uploads
+!uploads/.gitkeep
+test_requests

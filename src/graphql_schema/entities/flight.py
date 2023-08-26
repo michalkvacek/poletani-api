@@ -1,3 +1,4 @@
+import asyncio
 from datetime import timedelta
 from typing import List, Optional, Annotated, TYPE_CHECKING, Tuple
 import strawberry
@@ -161,14 +162,21 @@ class CreateFlightMutation:
     @authenticated_user_only()
     async def create_flight(self, info, input: CreateFlightInput) -> Flight:
         db = info.context.db
-        aircraft_id = await handle_aircraft_save(db, info.context.user_id, input.aircraft)
-
         data = input.to_dict()
-        takeoff_airport, landing_airport = await get_airports(db, input.takeoff_airport.id, input.landing_airport.id)
-        weather_takeoff = await handle_weather_info(db, data['takeoff_datetime'], takeoff_airport)
-        weather_landing = await handle_weather_info(db, data['landing_datetime'], landing_airport)
 
-        return await models.Flight.create(db, data={
+        takeoff_airport, landing_airport = await get_airports(db, input.takeoff_airport.id, input.landing_airport.id)
+
+        aircraft_id = await handle_aircraft_save(db, info.context.user_id, input.aircraft)
+        weather_takeoff,weather_landing = await asyncio.gather(
+            handle_weather_info(db, data['takeoff_datetime'], takeoff_airport),
+            handle_weather_info(db, data['landing_datetime'], landing_airport)
+        )
+        await db.flush()
+
+        print("XXXXXXXXXXXXX", weather_takeoff, weather_takeoff.id)
+
+
+        flight = await models.Flight.create(db, data={
             **data,
             "takeoff_weather_info_id": weather_takeoff.id,
             "landing_weather_info_id": weather_landing.id,
@@ -177,6 +185,7 @@ class CreateFlightMutation:
             "aircraft_id": aircraft_id,
             "created_by_id": info.context.user_id
         })
+        return flight
 
 
 @strawberry.type

@@ -11,7 +11,7 @@ from database.models import User
 from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
-from upload_utils import handle_file_upload, delete_file, get_public_url
+from upload_utils import handle_file_upload, delete_file, get_public_url, resize_image
 
 
 @strawberry_sqlalchemy_type(User, exclude_fields=['password_hashed'])
@@ -81,12 +81,19 @@ class EditUserMutation:
                 delete_file(f"{user_image_path}/{user.avatar_image_filename}", silent=True)
 
             data['avatar_image_filename'] = await handle_file_upload(input.avatar_image, user_image_path)
+            info.context.background_tasks.add_task(
+                resize_image, path=user_image_path, filename=data['avatar_image_filename'], new_width=400
+            )
 
         if input.title_image:
             if user.title_image_filename:
                 delete_file(f"{user_image_path}/{user.title_image_filename}", silent=True)
 
             data['title_image_filename'] = await handle_file_upload(input.title_image, user_image_path)
+
+            info.context.background_tasks.add_task(
+                resize_image, path=user_image_path, filename=data['title_image_filename'], new_width=800
+            )
 
         if input.old_password and input.new_password:
             if not bcrypt.verify(input.old_password, user.password_hashed):

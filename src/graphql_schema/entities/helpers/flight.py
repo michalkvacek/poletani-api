@@ -16,7 +16,7 @@ weather_api = Weather()
 async def handle_weather_info(db: AsyncSession, date_time: datetime, airport: models.Airport) -> models.WeatherInfo:
     weather = await weather_api.get_weather_for_hour(date_time.astimezone(), (airport.gps_latitude, airport.gps_longitude))
 
-    return await models.WeatherInfo.create(db_session=db, data={
+    model = models.WeatherInfo(**{
         "datetime": weather['datetime'],
         "qnh": weather['pressure_msl'],
         "temperature_surface": weather['temperature_2m'],
@@ -27,6 +27,9 @@ async def handle_weather_info(db: AsyncSession, date_time: datetime, airport: mo
         "wind_speed_surface": weather['windspeed_10m'],
         "wind_direction_surface": weather['winddirection_10m'],
     })
+    db.add(model)
+
+    return model
 
 
 async def handle_track_edit(db: AsyncSession, flight: models.Flight, track: List[ComboboxInput], user_id: int):
@@ -48,7 +51,7 @@ async def handle_track_edit(db: AsyncSession, flight: models.Flight, track: List
             poi_object = poi_map.get(item.id)
 
         if not poi_object:
-            poi_object = await models.PointOfInterest.create(db, data=dict(created_by_id=user_id, name=item.name))
+            poi_object = await models.PointOfInterest.create(db, data=dict(created_by_id=user_id, name=item.name, description=""))
             await db.flush()
 
         await models.FlightTrack.create(
@@ -63,19 +66,15 @@ async def handle_track_edit(db: AsyncSession, flight: models.Flight, track: List
 
 
 async def handle_aircraft_save(db: AsyncSession, user_id: int, aircraft: ComboboxInput):
-    if aircraft.id:
-        return aircraft.id
-    else:
-        obj = await models.Aircraft.create(db, {
-            "call_sign": aircraft.name,
+    return await handle_combobox_save(
+        db, models.Aircraft, aircraft, user_id,
+        name_column="call_sign",
+        extra_data={
             "description": "",
             "model": "",
+            "seats": 2,
             "manufacturer": "",
-            "created_by_id": user_id
-
         })
-        await db.flush()
-        return obj.id
 
 
 async def get_airports(db, takeoff_airport_id: int, landing_airport_id: int) -> Tuple[models.Airport, models.Airport]:
@@ -127,15 +126,21 @@ async def handle_copilots_edit(db: AsyncSession, copilots: List[ComboboxInput], 
 
 
 async def handle_combobox_save(
-        db: AsyncSession, model: Type[models.BaseModel],
+        db: AsyncSession,
+        model: Type[models.BaseModel],
         input: ComboboxInput,
         user_id: int,
-        name_column: str = "name"
+        name_column: str = "name",
+        extra_data: Optional[dict] = None
 ) -> int:
     if input.id:
         return input.id
     else:
-        data = {name_column: input.name}
+
+        if not extra_data:
+            extra_data = {}
+
+        data = {name_column: input.name, **extra_data}
         if hasattr(model, "created_by_id"):
             data["created_by_id"] = user_id
 

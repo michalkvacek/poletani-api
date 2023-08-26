@@ -5,7 +5,7 @@ from strawberry.file_uploads import Upload
 from database import models
 from decorators.endpoints import authenticated_user_only
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
-from upload_utils import get_public_url, handle_file_upload, delete_file, parse_exif_info, generate_thumbnail, file_exists
+from upload_utils import get_public_url, handle_file_upload, delete_file, parse_exif_info, generate_thumbnail, file_exists, resize_image
 
 
 @strawberry_sqlalchemy_type(models.Photo)
@@ -57,7 +57,9 @@ class UploadPhotoMutation:
     async def upload_photo(self, info, input: UploadPhotoInput) -> Photo:
         path = get_photo_basepath(input.flight_id)
         filename = await handle_file_upload(input.photo, path)
-        info.context.background_tasks.add_task(generate_thumbnail, path=path, filename=filename, size=(300, 200))
+
+        info.context.background_tasks.add_task(resize_image, path=path, filename=filename, new_width=2500)
+        info.context.background_tasks.add_task(generate_thumbnail, path=path, filename=filename, new_width=300)
 
         exif_info = await parse_exif_info(path, filename)
 
