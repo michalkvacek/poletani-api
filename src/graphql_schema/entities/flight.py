@@ -173,9 +173,6 @@ class CreateFlightMutation:
         )
         await db.flush()
 
-        print("XXXXXXXXXXXXX", weather_takeoff, weather_takeoff.id)
-
-
         flight = await models.Flight.create(db, data={
             **data,
             "takeoff_weather_info_id": weather_takeoff.id,

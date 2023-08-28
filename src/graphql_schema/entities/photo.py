@@ -1,11 +1,18 @@
-from typing import List
+from typing import List, Optional, Annotated, TYPE_CHECKING
 import strawberry
 from sqlalchemy import select, update
 from strawberry.file_uploads import Upload
 from database import models
 from decorators.endpoints import authenticated_user_only
-from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
+from graphql_schema.dataloaders.poi import poi_dataloader
+from graphql_schema.entities.poi import PointOfInterest
+from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
+from graphql_schema.types import ComboboxInput
 from upload_utils import get_public_url, handle_file_upload, delete_file, parse_exif_info, generate_thumbnail, file_exists, resize_image
+from .helpers.flight import handle_combobox_save
+
+if TYPE_CHECKING:
+    from .poi import PointOfInterest
 
 
 @strawberry_sqlalchemy_type(models.Photo)
@@ -14,14 +21,21 @@ class Photo:
         return get_public_url(f"photos/{root.flight_id}/{root.filename}")
 
     def resolve_thumb_url(root):
-        thumbnail = get_photo_basepath(root.flight_id)+"/thumbs/"+root.filename
+        thumbnail = get_photo_basepath(root.flight_id) + "/thumbs/" + root.filename
         if not file_exists(thumbnail):
             return get_public_url(f"photos/{root.flight_id}/{root.filename}")
 
         return get_public_url(f"photos/{root.flight_id}/thumbs/{root.filename}")
 
+    async def load_poi(root):
+        if not root.point_of_interest_id:
+            return None
+
+        return await poi_dataloader.load(root.point_of_interest_id)
+
     url: str = strawberry.field(resolver=resolve_url)
     thumbnail_url: str = strawberry.field(resolver=resolve_thumb_url)
+    point_of_interest: Optional[Annotated["PointOfInterest", strawberry.lazy('.poi')]] = strawberry.field(resolver=load_poi)
 
 
 def get_base_query(user_id: int):
@@ -46,11 +60,13 @@ class PhotoQueries:
 
 @strawberry.type
 class UploadPhotoMutation:
-    @strawberry_sqlalchemy_input(models.Photo, exclude_fields=[
-        "id", "filename", "is_flight_cover", "exposed_at", "gps_latitude", "gps_longitude", "gps_altitude"
-    ])
+    @strawberry.input
     class UploadPhotoInput:
         photo: Upload
+        flight_id: int
+        name: Optional[str] = None
+        description: Optional[str] = None
+        point_of_interest: Optional[ComboboxInput] = None
 
     @strawberry.mutation
     @authenticated_user_only()
@@ -59,11 +75,11 @@ class UploadPhotoMutation:
         filename = await handle_file_upload(input.photo, path)
 
         info.context.background_tasks.add_task(resize_image, path=path, filename=filename, new_width=2500)
-        info.context.background_tasks.add_task(generate_thumbnail, path=path, filename=filename, new_width=300)
+        info.context.background_tasks.add_task(generate_thumbnail, path=path, filename=filename)
 
         exif_info = await parse_exif_info(path, filename)
 
-        created_photo = await models.Photo.create(data={
+        return await models.Photo.create(data={
             "flight_id": input.flight_id,
             "name": input.name,
             "filename": filename,
@@ -76,14 +92,15 @@ class UploadPhotoMutation:
             "created_by_id": info.context.user_id,
         }, db_session=info.context.db)
 
-        return created_photo
-
 
 @strawberry.type
 class EditPhotoMutation:
-    @strawberry_sqlalchemy_input(models.Photo, exclude_fields=["id"], all_optional=True)
+    @strawberry.input
     class EditPhotoInput:
-        pass
+        name: Optional[str] = None
+        description: Optional[str] = None
+        point_of_interest: Optional[ComboboxInput] = None
+        is_flight_cover: Optional[bool] = None
 
     @strawberry.mutation()
     @authenticated_user_only()
@@ -91,7 +108,22 @@ class EditPhotoMutation:
         query = get_base_query(info.context.user_id)
         photo = (await info.context.db.scalars(query.filter(models.Photo.id == id))).one()
 
-        updated_model = await models.Photo.update(info.context.db, obj=photo, data=input.to_dict())
+        data = {
+            key: getattr(input, key) for key in ('name', 'description', 'is_flight_cover')
+            if getattr(input, key) is not None
+        }
+
+        if input.point_of_interest:
+            data['point_of_interest_id'] = await handle_combobox_save(
+                info.context.db,
+                models.PointOfInterest,
+                input.point_of_interest,
+                info.context.user_id,
+                extra_data={
+                    "description": ""
+                }
+            )
+        updated_model = await models.Photo.update(info.context.db, obj=photo, data=data)
 
         if input.is_flight_cover:
             # reset other covers
@@ -99,7 +131,6 @@ class EditPhotoMutation:
                 update(models.Photo)
                 .filter(models.Photo.flight_id == photo.flight_id)
                 .filter(models.Photo.id != id).values(is_flight_cover=False))
-
              )
 
         return updated_model
@@ -118,7 +149,7 @@ class DeletePhotoMutation:
             delete_file(f"{base_path}/{photo.filename}")
             delete_file(f"{base_path}/thumbs/{photo.filename}")
         except Exception as e:
-            print("ERROR", e)
+            print(e)
 
         await info.context.db.delete(photo)
 
