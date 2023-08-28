@@ -3,6 +3,7 @@ from datetime import timedelta
 from typing import List, Optional, Annotated, TYPE_CHECKING, Tuple
 import strawberry
 from fastapi import HTTPException
+from lxml import etree
 from sqlalchemy import select, insert, delete
 from starlette.status import HTTP_401_UNAUTHORIZED
 from strawberry.file_uploads import Upload
@@ -42,13 +43,24 @@ class WeatherInfo:
     pass
 
 
+@strawberry.type
+class Point:
+    lat: float
+    lng: float
+
+
+@strawberry.type
+class GPXTrack:
+    points: List[Point]
+    speed: List[float]
+    elevation: List[float]
+    terrain_elevation: List[float]
+
+
 @strawberry_sqlalchemy_type(models.Flight)
 class Flight:
     async def load_takeoff_airport(root):
         return await airport_dataloader.load(root.takeoff_airport_id)
-
-    async def load_track(root):
-        return await flight_track_dataloader.load(root.id)
 
     async def load_landing_airport(root):
         return await airport_dataloader.load(root.landing_airport_id)
@@ -78,6 +90,27 @@ class Flight:
 
         return 0
 
+    async def load_track(root):
+        return await flight_track_dataloader.load(root.id)
+
+    async def load_gpx_track(root):
+        if not root.gpx_track_filename:
+            return None
+
+        path = "/app/uploads/tracks"
+
+        tree = etree.parse(f"{path}/{root.gpx_track_filename}")
+        points = tree.findall("//trk")
+        speed = tree.xpath("//extensions/speed")
+        elevation = tree.xpath('//ele')
+        print(tree.getroot().find("trk"), list(points), speed, elevation)
+        return GPXTrack(
+            points=[Point(lat=50.123, lng=14.324243)],
+            speed=[],
+            elevation=[],
+            terrain_elevation=[]
+        )
+
     def load_gpx_track_url(root):
         if not root.gpx_track_filename:
             return None
@@ -99,6 +132,7 @@ class Flight:
     landing_weather_info: Optional[WeatherInfo] = strawberry.field(resolver=load_landing_weather_info)
     photos: List[Photo] = strawberry.field(resolver=load_photos)
     gpx_track_url: Optional[str] = strawberry.field(resolver=load_gpx_track_url)
+    gpx_track: Optional[GPXTrack] = strawberry.field(resolver=load_gpx_track)
 
 
 def get_base_query(user_id: Optional[int], username: Optional[str] = None, is_auth: bool = False):
@@ -167,14 +201,11 @@ class CreateFlightMutation:
         takeoff_airport, landing_airport = await get_airports(db, input.takeoff_airport.id, input.landing_airport.id)
 
         aircraft_id = await handle_aircraft_save(db, info.context.user_id, input.aircraft)
-        weather_takeoff,weather_landing = await asyncio.gather(
+        weather_takeoff, weather_landing = await asyncio.gather(
             handle_weather_info(db, data['takeoff_datetime'], takeoff_airport),
             handle_weather_info(db, data['landing_datetime'], landing_airport)
         )
         await db.flush()
-
-        print("XXXXXXXXXXXXX", weather_takeoff, weather_takeoff.id)
-
 
         flight = await models.Flight.create(db, data={
             **data,
@@ -192,7 +223,7 @@ class CreateFlightMutation:
 class EditFlightMutation:
     @strawberry_sqlalchemy_input(models.Flight, exclude_fields=[
         "id", "aircraft_id", "deleted", "landing_airport_id", "takeoff_airport_id"
-        "takeoff_weather_info_id", "landing_weather_info_id", "gpx_track_filename"
+                                                              "takeoff_weather_info_id", "landing_weather_info_id", "gpx_track_filename"
     ], all_optional=True)
     class EditFlightInput:
         gpx_track: Optional[Upload] = None  # TODO: poresit validaci uploadovaneho souboru!
