@@ -7,14 +7,13 @@ from graphql_schema.dataloaders.flight import flight_by_poi_dataloader
 from graphql_schema.dataloaders.photos import poi_photos_dataloader
 from graphql_schema.dataloaders.poi import poi_type_dataloader
 from graphql_schema.entities.helpers.flight import handle_combobox_save
-from graphql_schema.entities.photo import Photo
 from graphql_schema.entities.poi_type import PointOfInterestType
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from graphql_schema.types import ComboboxInput
 
-
 if TYPE_CHECKING:
     from .flight import Flight
+    from .photo import Photo
 
 @strawberry_sqlalchemy_type(models.PointOfInterest)
 class PointOfInterest:
@@ -28,7 +27,7 @@ class PointOfInterest:
         return await flight_by_poi_dataloader.load(root.id)
 
     type: Optional[PointOfInterestType] = strawberry.field(resolver=load_type)
-    photos: List[Photo] = strawberry.field(resolver=load_photos)
+    photos: List[Annotated["Photo", strawberry.lazy('.photo')]] = strawberry.field(resolver=load_photos)
     flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(resolver=load_flights)
 
 
@@ -72,7 +71,6 @@ class PointOfInterestQueries:
         return (await info.context.db.scalars(query)).one()
 
 
-
 @strawberry.type
 class CreatePointOfInterestMutation:
     @strawberry_sqlalchemy_input(models.PointOfInterest, exclude_fields=['id', 'type_id'])
@@ -84,12 +82,13 @@ class CreatePointOfInterestMutation:
     async def create_point_of_interest(root, info, input: CreatePointOfInterestInput) -> PointOfInterest:
         input_data = input.to_dict()
 
-        input_data['type_id'] = await handle_combobox_save(
-            info.context.db,
-            models.PointOfInterestType,
-            input.type,
-            info.context.user_id
-        )
+        if input.type:
+            input_data['type_id'] = await handle_combobox_save(
+                info.context.db,
+                models.PointOfInterestType,
+                input.type,
+                info.context.user_id
+            )
 
         return await models.PointOfInterest.create(
             info.context.db,

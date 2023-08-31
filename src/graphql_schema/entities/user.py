@@ -10,7 +10,7 @@ from database import models
 from database.models import User
 from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
-from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
+from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
 from upload_utils import handle_file_upload, delete_file, get_public_url, resize_image
 
 
@@ -46,22 +46,18 @@ class UserQueries:
     @authenticated_user_only()
     @error_logging
     async def logged_user(root, info) -> User:
-        user = (await info.context.db.scalars(
+        return (await info.context.db.scalars(
             select(models.User).filter_by(id=info.context.user_id)
         )).one()
-
-        print(user)
-        return user
 
 
 @strawberry.type
 class EditUserMutation:
-    @strawberry_sqlalchemy_input(
-        models.User,
-        exclude_fields=['id', 'email', 'avatar_image_filename', 'password_hashed', 'title_image_filename'],
-        all_optional=True
-    )
+    @strawberry.input
     class EditUserInput:
+        name: Optional[str] = None
+        description: Optional[str] = None
+        public_username: Optional[str] = None
         old_password: Optional[str] = None
         new_password: Optional[str] = None
         avatar_image: Optional[Upload] = None

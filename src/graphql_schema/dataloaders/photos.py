@@ -18,7 +18,6 @@ class PhotoDataloader:
                 select(Photo)
                 .filter(getattr(Photo, self.relationship_column).in_(ids))
             )).all()
-
             photos_by_relationship_id = defaultdict(list)
             for photo in models:
                 photos_by_relationship_id[getattr(photo, self.relationship_column)].append(photo)

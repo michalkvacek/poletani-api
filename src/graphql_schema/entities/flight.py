@@ -139,7 +139,7 @@ def get_base_query(user_id: Optional[int], username: Optional[str] = None, is_au
     query = (
         select(models.Flight)
         .filter(models.Flight.deleted.is_(False))
-        .order_by(models.Flight.id.desc())
+        .order_by(models.Flight.takeoff_datetime.desc())
     )
 
     if user_id:

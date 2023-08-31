@@ -63,7 +63,6 @@ async def parse_exif_info(path: str, filename: str) -> dict:
 
 
 async def resize_image(path: str, filename: str, new_width: int, quality: int = 90, dest_path: str = None, dest_filename: str = None):
-    print("AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
     if not dest_path:
         dest_path = path
 
@@ -79,22 +78,18 @@ async def resize_image(path: str, filename: str, new_width: int, quality: int = 
         image = image.resize((new_width, new_height), Image.LANCZOS)
         check_directories(dest_path)
         image.save(f"{dest_path}/{dest_filename}", 'JPEG', quality=quality)
-    except UnidentifiedImageError as e :
+    except UnidentifiedImageError as e:
         pass
-        print(e)
 
-    print("AAA^^^^^^^^^^^^AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA")
 
-async def generate_thumbnail(path: str, filename: str, size: Tuple[int, int], quality: int = 90):
-    try:
-        image = Image.open(f"{path}/{filename}")
-        image = image.thumbnail(size, Image.LANCZOS)
-        check_directories(f"{path}/thumbs/")
-        image.save(f"{path}/thumbs/{filename}", 'JPEG', quality=quality)
-
-        return await resize_image(path, filename, size, dest_path=f"{path}/thumbs/", dest_filename=filename)
-    except UnidentifiedImageError:
-        pass
+async def generate_thumbnail(path: str, filename: str, quality: int = 90):
+    return await resize_image(
+        path, filename,
+        new_width=300,
+        dest_path=f"{path}/thumbs/",
+        dest_filename=filename,
+        quality=quality
+    )
 
 
 def delete_file(path: str, silent: bool = False):
