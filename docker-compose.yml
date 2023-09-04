@@ -20,7 +20,9 @@ services:
     environment:
       TZ: "Europe/Prague"
       API_URL: "http://localhost:8000"
+      APP_ENV: "development"
       ALLOW_CORS_ORIGINS: "http://localhost:9000 http://localhost:9001"
+
 
   scrapy:
     build:

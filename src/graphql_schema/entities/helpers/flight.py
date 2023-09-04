@@ -1,11 +1,16 @@
 import asyncio
 from datetime import datetime
 from typing import List, Type, Literal, Optional, Tuple
+
+from aiohttp import ClientResponseError
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.background import BackgroundTasks
 from strawberry.file_uploads import Upload
 
 from database import models
+from external.elevation import ElevationAPI
+from external.gpx_parser import GPXParser
 from external.weather import Weather
 from graphql_schema.types import ComboboxInput
 from upload_utils import delete_file, file_exists, handle_file_upload
@@ -111,11 +116,33 @@ async def handle_airport_changed(
     setattr(flight, f"{type_}_datetime", input_datetime)
 
 
+async def add_terrain_elevation(db: AsyncSession, flight: models.Flight, gpx_filename: str):
+    path = "/app/uploads/tracks"  # TODO vytahnout do configu
+
+    elevation_api = ElevationAPI()
+    gpx_parser = GPXParser(f"{path}/{gpx_filename}")
+
+    coordinates = await gpx_parser.get_coordinates()
+    print("AAAAAAAAAAAAAAAAAAAAAAAAA", coordinates)
+
+    try:
+        elevation = await elevation_api.get_elevation_for_points(coordinates)
+        print("ELEVATION", elevation)
+        tree_with_elevation = gpx_parser.add_terrain_elevation(elevation)
+        output_name = f"terrain_{gpx_filename}"
+        gpx_parser.write(tree_with_elevation, f"{path}/{output_name}")
+        await models.Flight.update(db, {"gpx_track_filename": output_name}, obj=flight)
+
+    except ClientResponseError:
+        print("NEumim elevation!")
+
+
+
 async def handle_upload_gpx(flight: models.Flight, gpx_track: Upload):
     path = "/app/uploads/tracks"
 
-    if flight.gpx_track_filename and file_exists(path + "/" + flight.gpx_track_filename):
-        delete_file(path + "/" + flight.gpx_track_filename)
+    if flight.gpx_track_filename:
+        delete_file(path + "/" + flight.gpx_track_filename, silent=True)
 
     return await handle_file_upload(gpx_track, path)
 

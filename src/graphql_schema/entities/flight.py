@@ -1,5 +1,5 @@
 import asyncio
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import List, Optional, Annotated, TYPE_CHECKING, Tuple
 import strawberry
 from fastapi import HTTPException
@@ -11,6 +11,7 @@ from database import models
 from database.models import flight_has_copilot
 from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
+from external.gpx_parser import GPXParser
 from graphql_schema.dataloaders.aircraft import aircraft_dataloader
 from graphql_schema.dataloaders.airport import airport_dataloader
 from graphql_schema.dataloaders.copilots import flight_copilots_dataloader
@@ -23,7 +24,7 @@ from graphql_schema.entities.photo import Photo
 from graphql_schema.entities.poi import PointOfInterest
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from upload_utils import get_public_url
-from .helpers.flight import handle_aircraft_save, handle_track_edit, handle_copilots_edit, handle_weather_info, get_airports, handle_upload_gpx, handle_airport_changed
+from .helpers.flight import handle_aircraft_save, handle_track_edit, handle_copilots_edit, handle_weather_info, get_airports, handle_upload_gpx, handle_airport_changed, add_terrain_elevation
 from ..types import ComboboxInput
 
 if TYPE_CHECKING:
@@ -51,10 +52,16 @@ class Point:
 
 @strawberry.type
 class GPXTrack:
-    points: List[Point]
+    coordinates: List[Point]
     speed: List[float]
-    elevation: List[float]
+    altitude: List[float]
+    magnetic_variation: List[float]
     terrain_elevation: List[float]
+    time: List[datetime]
+    max_speed: float
+    avg_speed: float
+    max_altitude: float
+    avg_altitude: float
 
 
 @strawberry_sqlalchemy_type(models.Flight)
@@ -97,18 +104,22 @@ class Flight:
         if not root.gpx_track_filename:
             return None
 
-        path = "/app/uploads/tracks"
+        try:
+            gpx_parser = GPXParser(f"/app/uploads/tracks/{root.gpx_track_filename}")
+        except OSError:
+            return None
 
-        tree = etree.parse(f"{path}/{root.gpx_track_filename}")
-        points = tree.findall("//trk")
-        speed = tree.xpath("//extensions/speed")
-        elevation = tree.xpath('//ele')
-        print(tree.getroot().find("trk"), list(points), speed, elevation)
         return GPXTrack(
-            points=[Point(lat=50.123, lng=14.324243)],
-            speed=[],
-            elevation=[],
-            terrain_elevation=[]
+            coordinates=[Point(**point) for point in await gpx_parser.get_coordinates()],
+            speed=await gpx_parser.get_speed(),
+            altitude=await gpx_parser.get_altitude(),
+            terrain_elevation=await gpx_parser.get_terrain_elevation(),
+            time=await gpx_parser.get_times(),
+            max_speed=await gpx_parser.get_max_speed(),
+            avg_speed=await gpx_parser.get_avg_speed(),
+            max_altitude=await gpx_parser.get_max_altitude(),
+            avg_altitude=await gpx_parser.get_avg_altitude(),
+            magnetic_variation=await gpx_parser.get_magnetic_variation(),
         )
 
     def load_gpx_track_url(root):
@@ -131,7 +142,7 @@ class Flight:
     takeoff_weather_info: Optional[WeatherInfo] = strawberry.field(resolver=load_takeoff_weather_info)
     landing_weather_info: Optional[WeatherInfo] = strawberry.field(resolver=load_landing_weather_info)
     photos: List[Photo] = strawberry.field(resolver=load_photos)
-    gpx_track_url: Optional[str] = strawberry.field(resolver=load_gpx_track_url)
+    gpx_track_url: Optional[str] = strawberry.field(resolver=load_gpx_track_url)  # TODO: odstranit
     gpx_track: Optional[GPXTrack] = strawberry.field(resolver=load_gpx_track)
 
 
@@ -222,8 +233,8 @@ class CreateFlightMutation:
 @strawberry.type
 class EditFlightMutation:
     @strawberry_sqlalchemy_input(models.Flight, exclude_fields=[
-        "id", "aircraft_id", "deleted", "landing_airport_id", "takeoff_airport_id"
-                                                              "takeoff_weather_info_id", "landing_weather_info_id", "gpx_track_filename"
+        "id", "aircraft_id", "deleted", "landing_airport_id", "takeoff_airport_id",
+        "takeoff_weather_info_id", "landing_weather_info_id", "gpx_track_filename"
     ], all_optional=True)
     class EditFlightInput:
         gpx_track: Optional[Upload] = None  # TODO: poresit validaci uploadovaneho souboru!
@@ -253,7 +264,9 @@ class EditFlightMutation:
 
         if input.gpx_track is not None:
             data['gpx_track_filename'] = await handle_upload_gpx(flight, input.gpx_track)
+            info.context.background_tasks.add_task(add_terrain_elevation, flight=flight, gpx_filename=data['gpx_track_filename'], db=db)
 
+        # TODO: nasledujici metody volat i pokud se zmenil cas vzletu!
         if input.takeoff_airport and input.takeoff_airport.id != flight.takeoff_airport_id:
             await handle_airport_changed(
                 db,

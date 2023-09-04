@@ -1,7 +1,5 @@
 version: "3.3"
 
-# testovaci koment
-
 services:
   api:
     image: "docker.kvacek.cz/poletani/api:latest"

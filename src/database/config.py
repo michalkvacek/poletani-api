@@ -14,7 +14,7 @@ def get_database_url():
 
 def create_db_engine():
     database_url = get_database_url()
-    return create_async_engine(database_url, future=True, echo=True)
+    return create_async_engine(database_url, future=True, echo=True, pool_pre_ping=True)
 
 
 engine = create_db_engine()
