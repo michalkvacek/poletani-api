@@ -17,6 +17,7 @@ class PhotoDataloader:
             models = (await session.scalars(
                 select(Photo)
                 .filter(getattr(Photo, self.relationship_column).in_(ids))
+                .order_by(Photo.exposed_at)
             )).all()
             photos_by_relationship_id = defaultdict(list)
             for photo in models:

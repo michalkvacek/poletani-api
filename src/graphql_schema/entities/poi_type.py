@@ -3,6 +3,7 @@ import strawberry
 from sqlalchemy import select, or_
 from database import models
 from decorators.endpoints import authenticated_user_only
+from dependencies.db import get_session
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
 from graphql_schema.types import ComboboxInput
 
@@ -40,7 +41,9 @@ class PointOfInterestTypeQueries:
             .order_by(models.PointOfInterestType.id.desc())
         )
 
-        return (await info.context.db.scalars(query)).all()
+        async with get_session() as db:
+            poi_types = (await db.scalars(query)).all()
+            return [PointOfInterestType(**poi_type.as_dict()) for poi_type in poi_types]
 
     @strawberry.field()
     @authenticated_user_only()
@@ -49,7 +52,9 @@ class PointOfInterestTypeQueries:
             get_base_query(info.context.user_id)
             .filter(models.PointOfInterestType.id == id)
         )
-        return (await info.context.db.scalars(query)).one()
+        async with get_session() as db:
+            poi_type = (await db.scalars(query)).one()
+            return PointOfInterestType(**poi_type.as_dict())
 
 #
 # @strawberry.type

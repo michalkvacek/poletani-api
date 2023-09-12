@@ -31,8 +31,8 @@ def strawberry_sqlalchemy_type(model, exclude_fields: Optional[typing.Union[List
     if exclude_fields is None:
         exclude_fields = []
 
-    def from_sqlalchemy_model(model: BaseModel):
-        return model
+    def from_sqlalchemy_model(cls, model: BaseModel):
+        return cls(model)
 
     def wrapper(cls):
         cls.__annotations__.update(get_annotations_for_scalars(model, exclude_fields=exclude_fields + ["deleted"]))

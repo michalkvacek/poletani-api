@@ -3,6 +3,7 @@ import strawberry
 from sqlalchemy import select, or_
 from database import models
 from decorators.endpoints import authenticated_user_only
+from dependencies.db import get_session
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
 
 
@@ -19,27 +20,29 @@ def get_base_query(user_id: int):
             models.Airport.created_by_id == user_id,
             models.Airport.created_by_id.is_(None),
         ))
+        .order_by(models.Airport.icao_code)
     )
 
 
 @strawberry.type
 class AirportQueries:
-
-    @strawberry.field
+    @strawberry.field()
     @authenticated_user_only()
     async def airports(root, info) -> List[Airport]:
-        query = (
-            get_base_query(info.context.user_id)
-            .order_by(models.Airport.id.desc())
-        )
+        query = get_base_query(info.context.user_id)
 
-        return (await info.context.db.scalars(query)).all()
+        async with get_session() as db:
+            airports = (await db.scalars(query)).all()
+            return [Airport(**a.as_dict()) for a in airports]
 
-    @strawberry.field
+    @strawberry.field()
     @authenticated_user_only()
     async def airport(root, info, id: int) -> Airport:
         query = (
             get_base_query(info.context.user_id)
             .filter(models.Airport.id == id)
         )
-        return (await info.context.db.scalars(query)).one()
+
+        async with get_session() as db:
+            airport = (await db.scalars(query)).one()
+            return Airport(**airport.as_dict())

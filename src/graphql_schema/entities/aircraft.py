@@ -4,6 +4,7 @@ from strawberry.file_uploads import Upload
 from sqlalchemy import select
 from database import models
 from decorators.endpoints import authenticated_user_only
+from dependencies.db import get_session
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from upload_utils import handle_file_upload, delete_file, get_public_url
 from ..dataloaders.flight import flights_by_aircraft_dataloader
@@ -44,8 +45,10 @@ class AircraftQueries:
             get_base_query(info.context.user_id)
             .order_by(models.Aircraft.id.desc())
         )
+        async with get_session() as db:
+            aircrafts = (await db.scalars(query)).all()
 
-        return (await info.context.db.scalars(query)).all()
+            return [Aircraft(**a.as_dict()) for a in aircrafts]
 
     @strawberry.field()
     @authenticated_user_only()
@@ -54,7 +57,9 @@ class AircraftQueries:
             get_base_query(info.context.user_id)
             .filter(models.Aircraft.id == id)
         )
-        return (await info.context.db.scalars(query)).one()
+        async with get_session() as db:
+            aircraft = (await db.scalars(query)).one()
+            return Aircraft(**aircraft.as_dict())
 
 
 @strawberry.type
@@ -73,7 +78,7 @@ class CreateAircraftMutation:
             input_data['photo_filename'] = await handle_file_upload(input.photo, AIRCRAFT_UPLOAD_DEST_PATH)
 
         return await models.Aircraft.create(
-            info.context.db,
+            db,
             data=dict(
                 **input_data,
                 created_by_id=info.context.user_id,
@@ -91,17 +96,20 @@ class EditAircraftMutation:
     @authenticated_user_only()
     async def edit_aircraft(root, info, id: int, input: EditAircraftInput) -> Aircraft:
         # TODO: kontrola organizace
-        # TODO: kontrola opravneni na akci
 
         update_data = input.to_dict()
-        aircraft = await models.Aircraft.get_one(info.context.db, id)
+        async with get_session() as db:
+            aircraft = (await db.scalars(
+                get_base_query(info.context.user_id)
+                .filter(models.Aircraft.id == id)
+            )).one()
 
         if input.photo:
             if aircraft.photo_filename:
                 delete_file(AIRCRAFT_UPLOAD_DEST_PATH + "/" + aircraft.photo_filename, silent=True)
             update_data['photo_filename'] = await handle_file_upload(input.photo, AIRCRAFT_UPLOAD_DEST_PATH)
 
-        return await models.Aircraft.update(info.context.db, obj=aircraft, data=update_data)
+        return await models.Aircraft.update(db, obj=aircraft, data=update_data)
 
 
 @strawberry.type
@@ -110,6 +118,11 @@ class DeleteAircraftMutation:
     @strawberry.mutation
     @authenticated_user_only()
     async def delete_aircraft(self, info, id: int) -> Aircraft:
-        # TODO: kontrola opravneni na akci
+        async with get_session() as db:
+            aircraft = (await db.scalars(
+                get_base_query(info.context.user_id)
+                .filter(models.Aircraft.id == id)
+            )).one()
 
-        return await models.Aircraft.update(info.context.db, id=id, data=dict(deleted=True))
+            aircraft = await models.Aircraft.update(db, obj=aircraft, data=dict(deleted=True))
+            return Aircraft(**aircraft.as_dict())

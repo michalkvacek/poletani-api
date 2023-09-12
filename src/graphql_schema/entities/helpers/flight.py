@@ -9,7 +9,7 @@ from starlette.background import BackgroundTasks
 from strawberry.file_uploads import Upload
 
 from database import models
-from external.elevation import ElevationAPI
+from external.elevation import ElevationAPI, elevation_api
 from external.gpx_parser import GPXParser
 from external.weather import Weather
 from graphql_schema.types import ComboboxInput
@@ -104,6 +104,7 @@ async def handle_airport_changed(
     flight_datetime = getattr(flight, f"{type_}_datetime")
     if input_datetime and input_datetime != flight_datetime:
         weather = await handle_weather_info(db, input_datetime, airport)
+        await db.flush()
 
         existing_weather_id = getattr(flight, f"{type_}_weather_info_id")
         if existing_weather_id:
@@ -119,7 +120,6 @@ async def handle_airport_changed(
 async def add_terrain_elevation(db: AsyncSession, flight: models.Flight, gpx_filename: str):
     path = "/app/uploads/tracks"  # TODO vytahnout do configu
 
-    elevation_api = ElevationAPI()
     gpx_parser = GPXParser(f"{path}/{gpx_filename}")
 
     coordinates = await gpx_parser.get_coordinates()
@@ -131,7 +131,7 @@ async def add_terrain_elevation(db: AsyncSession, flight: models.Flight, gpx_fil
         tree_with_elevation = gpx_parser.add_terrain_elevation(elevation)
         output_name = f"terrain_{gpx_filename}"
         gpx_parser.write(tree_with_elevation, f"{path}/{output_name}")
-        await models.Flight.update(db, {"gpx_track_filename": output_name}, obj=flight)
+        await models.Flight.update(db, {"gpx_track_filename": output_name, "has_terrain_elevation": True}, obj=flight)
 
     except ClientResponseError:
         print("NEumim elevation!")

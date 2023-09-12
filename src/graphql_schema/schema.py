@@ -30,7 +30,6 @@ class LoggingExtension(SchemaExtension):
 
 @dataclasses.dataclass
 class GraphQLContext(BaseContext):
-    db: AsyncSession
     user_id: int
     jwt_auth_credentials: JwtAuthorizationCredentials
     jwt: JwtAccessBearerCookie

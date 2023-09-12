@@ -23,3 +23,6 @@ class ElevationAPI:
             "lng": loc['longitude'],
             "elevation": loc['elevation']
         } for loc in response['results']]
+
+
+elevation_api = ElevationAPI()

@@ -57,12 +57,8 @@ class App:
         app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
     def setup_graphql_endpoint(self, app: FastAPI):
-        def setup_graphql_context(
-                credentials: JwtAuthorizationCredentials = Security(self.access_security),
-                db: AsyncSession = Depends(db_session)
-        ):
+        def setup_graphql_context(credentials: JwtAuthorizationCredentials = Security(self.access_security)):
             return GraphQLContext(
-                db=db,
                 user_id=credentials['id'] if credentials else None,
                 jwt_auth_credentials=credentials,
                 jwt=self.access_security,

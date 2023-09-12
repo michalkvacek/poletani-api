@@ -2,8 +2,10 @@ from typing import List, Optional, Annotated, TYPE_CHECKING
 import strawberry
 from sqlalchemy import select, update
 from strawberry.file_uploads import Upload
+from background_jobs.photo import add_terrain_elevation
 from database import models
 from decorators.endpoints import authenticated_user_only
+from dependencies.db import get_session
 from graphql_schema.dataloaders.poi import poi_dataloader
 from graphql_schema.entities.poi import PointOfInterest
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
@@ -55,7 +57,10 @@ class PhotoQueries:
     @strawberry.field()
     async def photos(root, info) -> List[Photo]:
         query = get_base_query(info.context.user_id)
-        return (await info.context.db.scalars(query)).all()
+
+        async with get_session() as db:
+            photos = (await db.scalars(query)).all()
+            return [Photo(**photo.as_dict()) for photo in photos]
 
 
 @strawberry.type
@@ -73,24 +78,30 @@ class UploadPhotoMutation:
     async def upload_photo(self, info, input: UploadPhotoInput) -> Photo:
         path = get_photo_basepath(input.flight_id)
         filename = await handle_file_upload(input.photo, path)
-
-        info.context.background_tasks.add_task(resize_image, path=path, filename=filename, new_width=2500)
-        info.context.background_tasks.add_task(generate_thumbnail, path=path, filename=filename)
-
         exif_info = await parse_exif_info(path, filename)
 
-        return await models.Photo.create(data={
-            "flight_id": input.flight_id,
-            "name": input.name,
-            "filename": filename,
-            "description": input.description,
-            "exposed_at": exif_info.get("datetime"),
-            "gps_latitude": exif_info.get("gps_latitude"),
-            "gps_longitude": exif_info.get("gps_longitude"),
-            "gps_altitude": exif_info.get("gps_altitude"),
-            "is_flight_cover": False,
-            "created_by_id": info.context.user_id,
-        }, db_session=info.context.db)
+        async with get_session() as db:
+            photo_model = await models.Photo.create(data={
+                "flight_id": input.flight_id,
+                "name": input.name,
+                "filename": filename,
+                "description": input.description,
+                "exposed_at": exif_info.get("datetime"),
+                "gps_latitude": exif_info.get("gps_latitude"),
+                "gps_longitude": exif_info.get("gps_longitude"),
+                "gps_altitude": exif_info.get("gps_altitude"),
+                "is_flight_cover": False,
+                "created_by_id": info.context.user_id,
+            }, db_session=db)
+            photo = Photo(**photo_model.as_dict())
+
+        info.context.background_tasks.add_task(resize_image, path=path, filename=filename, new_width=2500, quality=85)
+        info.context.background_tasks.add_task(generate_thumbnail, path=path, filename=filename)
+
+        if exif_info.get("gps_latitude") and exif_info.get("gps_longitude"):
+            info.context.background_tasks.add_task(add_terrain_elevation, photo=photo)
+
+        return photo
 
 
 @strawberry.type
@@ -106,34 +117,36 @@ class EditPhotoMutation:
     @authenticated_user_only()
     async def edit_photo(self, info, id: int, input: EditPhotoInput) -> Photo:
         query = get_base_query(info.context.user_id)
-        photo = (await info.context.db.scalars(query.filter(models.Photo.id == id))).one()
 
         data = {
             key: getattr(input, key) for key in ('name', 'description', 'is_flight_cover')
             if getattr(input, key) is not None
         }
 
-        if input.point_of_interest:
-            data['point_of_interest_id'] = await handle_combobox_save(
-                info.context.db,
-                models.PointOfInterest,
-                input.point_of_interest,
-                info.context.user_id,
-                extra_data={
-                    "description": ""
-                }
-            )
-        updated_model = await models.Photo.update(info.context.db, obj=photo, data=data)
+        async with get_session() as db:
+            photo = (await db.scalars(query.filter(models.Photo.id == id))).one()
 
-        if input.is_flight_cover:
-            # reset other covers
-            (await info.context.db.execute(
-                update(models.Photo)
-                .filter(models.Photo.flight_id == photo.flight_id)
-                .filter(models.Photo.id != id).values(is_flight_cover=False))
-             )
+            if input.point_of_interest:
+                data['point_of_interest_id'] = await handle_combobox_save(
+                    db,
+                    models.PointOfInterest,
+                    input.point_of_interest,
+                    info.context.user_id,
+                    extra_data={
+                        "description": ""
+                    }
+                )
 
-        return updated_model
+            if input.is_flight_cover:
+                # reset other covers
+                (await db.execute(
+                    update(models.Photo)
+                    .filter(models.Photo.flight_id == photo.flight_id)
+                    .filter(models.Photo.id != id).values(is_flight_cover=False))
+                 )
+
+            updated_model = await models.Photo.update(db, obj=photo, data=data)
+            return Photo(**updated_model.as_dict())
 
 
 @strawberry.type
@@ -142,7 +155,10 @@ class DeletePhotoMutation:
     @authenticated_user_only()
     async def delete_photo(self, info, id: int) -> Photo:
         query = get_base_query(info.context.user_id)
-        photo = (await info.context.db.scalars(query.filter(models.Photo.id == id))).one()
+        async with get_session() as db:
+            photo_model = (await db.scalars(query.filter(models.Photo.id == id))).one()
+            await db.delete(photo_model)
+            photo = Photo(**photo_model.as_dict())
 
         base_path = get_photo_basepath(photo.flight_id)
         try:
@@ -151,6 +167,4 @@ class DeletePhotoMutation:
         except Exception as e:
             print(e)
 
-        await info.context.db.delete(photo)
-
-        return photo
+        return photo_model

@@ -3,6 +3,7 @@ import strawberry
 from sqlalchemy import select, or_
 from database import models
 from decorators.endpoints import authenticated_user_only
+from dependencies.db import get_session
 from graphql_schema.dataloaders.flight import flight_by_poi_dataloader
 from graphql_schema.dataloaders.photos import poi_photos_dataloader
 from graphql_schema.dataloaders.poi import poi_type_dataloader
@@ -14,6 +15,7 @@ from graphql_schema.types import ComboboxInput
 if TYPE_CHECKING:
     from .flight import Flight
     from .photo import Photo
+
 
 @strawberry_sqlalchemy_type(models.PointOfInterest)
 class PointOfInterest:
@@ -36,7 +38,6 @@ def get_base_query(user_id: int, only_my: bool = False):
         select(models.PointOfInterest)
         .filter(models.PointOfInterest.deleted.is_(False))
     )
-
     if only_my:
         query = query.filter(models.PointOfInterest.created_by_id == user_id)
     else:
@@ -58,8 +59,9 @@ class PointOfInterestQueries:
             get_base_query(info.context.user_id)
             .order_by(models.PointOfInterest.id.desc())
         )
-
-        return (await info.context.db.scalars(query)).all()
+        async with get_session() as db:
+            pois = (await db.scalars(query)).all()
+            return [PointOfInterest(**poi.as_dict()) for poi in pois]
 
     @strawberry.field()
     @authenticated_user_only()
@@ -68,7 +70,9 @@ class PointOfInterestQueries:
             get_base_query(info.context.user_id)
             .filter(models.PointOfInterest.id == id)
         )
-        return (await info.context.db.scalars(query)).one()
+        async with get_session() as db:
+            poi = (await db.scalars(query)).one()
+            return PointOfInterest(**poi.as_dict())
 
 
 @strawberry.type
@@ -82,21 +86,14 @@ class CreatePointOfInterestMutation:
     async def create_point_of_interest(root, info, input: CreatePointOfInterestInput) -> PointOfInterest:
         input_data = input.to_dict()
 
-        if input.type:
-            input_data['type_id'] = await handle_combobox_save(
-                info.context.db,
-                models.PointOfInterestType,
-                input.type,
-                info.context.user_id
-            )
+        async with get_session() as db:
+            if input.type:
+                input_data['type_id'] = await handle_combobox_save(
+                    db, models.PointOfInterestType, input.type, info.context.user_id
+                )
 
-        return await models.PointOfInterest.create(
-            info.context.db,
-            data=dict(
-                **input_data,
-                created_by_id=info.context.user_id,
-            )
-        )
+            poi = await models.PointOfInterest.create(db, data=dict(**input_data, created_by_id=info.context.user_id))
+            return PointOfInterest(**poi.as_dict())
 
 
 @strawberry.type
@@ -111,20 +108,19 @@ class EditPointOfInterestMutation:
         # TODO: kontrola organizace
         input_data = input.to_dict()
 
-        if input.type is not None:
-            input_data['type_id'] = await handle_combobox_save(
-                info.context.db,
-                models.PointOfInterestType,
-                input.type,
-                info.context.user_id
-            )
+        async with get_session() as db:
+            if input.type is not None:
+                input_data['type_id'] = await handle_combobox_save(
+                    db, models.PointOfInterestType, input.type, info.context.user_id
+                )
 
-        poi = (
-            await info.context.db.scalars(
-                get_base_query(info.context.user_id, only_my=True)
-                .filter(models.PointOfInterest.id == id))
-        ).one()
-        return await models.PointOfInterest.update(info.context.db, obj=poi, data=input_data)
+            poi = (
+                await db.scalars(
+                    get_base_query(info.context.user_id, only_my=True)
+                    .filter(models.PointOfInterest.id == id)
+                )).one()
+            updated_poi = await models.PointOfInterest.update(db, obj=poi, data=input_data)
+            return PointOfInterest(**updated_poi.as_dict())
 
 
 @strawberry.type
@@ -133,6 +129,11 @@ class DeletePointOfInterestMutation:
     @strawberry.mutation
     @authenticated_user_only()
     async def delete_point_of_interest(self, info, id: int) -> PointOfInterest:
-        poi = get_base_query(info.context.user_id, only_my=True).filter(models.PointOfInterest.id == id).one()
+        async with get_session() as db:
+            poi = (await db.scalars(
+                get_base_query(info.context.user_id, only_my=True)
+                .filter(models.PointOfInterest.id == id)
+            )).one()
 
-        return await models.PointOfInterest.update(info.context.db, obj=poi, data=dict(deleted=True))
+            updated_poi = await models.PointOfInterest.update(db, obj=poi, data=dict(deleted=True))
+            return PointOfInterest(**updated_poi.as_dict())

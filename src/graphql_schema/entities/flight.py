@@ -11,6 +11,7 @@ from database import models
 from database.models import flight_has_copilot
 from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
+from dependencies.db import get_session
 from external.gpx_parser import GPXParser
 from graphql_schema.dataloaders.aircraft import aircraft_dataloader
 from graphql_schema.dataloaders.airport import airport_dataloader
@@ -157,7 +158,11 @@ def get_base_query(user_id: Optional[int], username: Optional[str] = None, is_au
         query = query.filter(models.Flight.created_by_id == user_id)
 
     if username:
-        query = query.join(models.Flight.created_by).filter(models.User.public_username == username)
+        query = (
+            query
+            .join(models.Flight.created_by)
+            .filter(models.User.public_username == username)
+        )
 
     if not is_auth:
         query = query.filter(models.Flight.is_public.is_(True))
@@ -171,13 +176,16 @@ class FlightQueries:
     @strawberry.field()
     async def flights(root, info, username: Optional[str] = None) -> List[Flight]:
         if not info.context.user_id and not username:
-            raise HTTPException(HTTP_401_UNAUTHORIZED, f"user_id={info.context.user_id}, {username=}")
+            raise HTTPException(HTTP_401_UNAUTHORIZED)
 
         query = (
             get_base_query(user_id=info.context.user_id, username=username, is_auth=bool(info.context.user_id))
             .order_by(models.Flight.id.desc())
         )
-        return (await info.context.db.scalars(query)).all()
+
+        async with get_session() as db:
+            flights = (await db.scalars(query)).all()
+            return [Flight(**f.as_dict()) for f in flights]
 
     @strawberry.field()
     @error_logging
@@ -189,14 +197,17 @@ class FlightQueries:
             get_base_query(user_id=info.context.user_id, username=username, is_auth=bool(info.context.user_id))
             .filter(models.Flight.id == id)
         )
-        return (await info.context.db.scalars(query)).one()
+
+        async with get_session() as db:
+            flight = (await db.scalars(query)).one()
+            return Flight(**flight.as_dict())
 
 
 @strawberry.type
 class CreateFlightMutation:
     @strawberry_sqlalchemy_input(models.Flight, exclude_fields=[
         "id", "aircraft_id", "landing_airport_id", "takeoff_airport_id", "weather_info_takeoff_id",
-        "weather_info_landing_id", "with_instructor"
+        "weather_info_landing_id", "with_instructor", "has_terrain_elevation"
     ])
     class CreateFlightInput:
         aircraft: ComboboxInput
@@ -206,28 +217,29 @@ class CreateFlightMutation:
     @strawberry.mutation
     @authenticated_user_only()
     async def create_flight(self, info, input: CreateFlightInput) -> Flight:
-        db = info.context.db
         data = input.to_dict()
 
-        takeoff_airport, landing_airport = await get_airports(db, input.takeoff_airport.id, input.landing_airport.id)
+        async with get_session() as db:
+            takeoff_airport, landing_airport = await get_airports(db, input.takeoff_airport.id, input.landing_airport.id)
 
-        aircraft_id = await handle_aircraft_save(db, info.context.user_id, input.aircraft)
-        weather_takeoff, weather_landing = await asyncio.gather(
-            handle_weather_info(db, data['takeoff_datetime'], takeoff_airport),
-            handle_weather_info(db, data['landing_datetime'], landing_airport)
-        )
-        await db.flush()
+            aircraft_id = await handle_aircraft_save(db, info.context.user_id, input.aircraft)
+            weather_takeoff, weather_landing = await asyncio.gather(
+                handle_weather_info(db, data['takeoff_datetime'], takeoff_airport),
+                handle_weather_info(db, data['landing_datetime'], landing_airport)
+            )
+            await db.flush()
 
-        flight = await models.Flight.create(db, data={
-            **data,
-            "takeoff_weather_info_id": weather_takeoff.id,
-            "landing_weather_info_id": weather_landing.id,
-            "takeoff_airport_id": takeoff_airport.id,
-            "landing_airport_id": landing_airport.id,
-            "aircraft_id": aircraft_id,
-            "created_by_id": info.context.user_id
-        })
-        return flight
+            flight = await models.Flight.create(db, data={
+                **data,
+                "takeoff_weather_info_id": weather_takeoff.id,
+                "landing_weather_info_id": weather_landing.id,
+                "takeoff_airport_id": takeoff_airport.id,
+                "landing_airport_id": landing_airport.id,
+                "has_terrain_elevation": False,
+                "aircraft_id": aircraft_id,
+                "created_by_id": info.context.user_id
+            })
+            return Flight(**flight.as_dict())
 
 
 @strawberry.type
@@ -247,56 +259,66 @@ class EditFlightMutation:
     @strawberry.mutation
     @authenticated_user_only()
     async def edit_flight(self, info, id: int, input: EditFlightInput) -> Flight:
-        db = info.context.db
         user_id = info.context.user_id
 
-        flight = (await db.scalars(
-            get_base_query(user_id=user_id, is_auth=bool(user_id)).filter(models.Flight.id == id)
-        )).one()
+        async with get_session() as db:
 
-        takeoff_airport, landing_airport = await get_airports(
-            db,
-            takeoff_airport_id=input.takeoff_airport.id if input.takeoff_airport else flight.takeoff_airport_id,
-            landing_airport_id=input.landing_airport.id if input.landing_airport else flight.landing_airport_id,
-        )
+            flight = (await db.scalars(
+                get_base_query(user_id=user_id, is_auth=bool(user_id)).filter(models.Flight.id == id)
+            )).one()
 
-        data = input.to_dict()
-
-        if input.gpx_track is not None:
-            data['gpx_track_filename'] = await handle_upload_gpx(flight, input.gpx_track)
-            info.context.background_tasks.add_task(add_terrain_elevation, flight=flight, gpx_filename=data['gpx_track_filename'], db=db)
-
-        # TODO: nasledujici metody volat i pokud se zmenil cas vzletu!
-        if input.takeoff_airport and input.takeoff_airport.id != flight.takeoff_airport_id:
-            await handle_airport_changed(
+            takeoff_airport, landing_airport = await get_airports(
                 db,
-                flight,
-                takeoff_airport,
-                type_="takeoff",
-                input_datetime=data.get('takeoff_datetime')
+                takeoff_airport_id=input.takeoff_airport.id if input.takeoff_airport else flight.takeoff_airport_id,
+                landing_airport_id=input.landing_airport.id if input.landing_airport else flight.landing_airport_id,
             )
 
-        if input.landing_airport and input.landing_airport.id != flight.landing_airport_id:
-            await handle_airport_changed(
-                db,
-                flight,
-                landing_airport,
-                type_="landing",
-                input_datetime=data.get('landing_datetime')
-            )
+            data = input.to_dict()
 
-        if input.aircraft is not None:
-            data['aircraft_id'] = await handle_aircraft_save(db, user_id, input.aircraft)
+            if input.gpx_track is not None:
+                data['gpx_track_filename'] = await handle_upload_gpx(flight, input.gpx_track)
+                info.context.background_tasks.add_task(
+                    add_terrain_elevation, flight=flight, gpx_filename=data['gpx_track_filename'], db=db
+                )
 
-        if input.track is not None:
-            await handle_track_edit(db=db, flight=flight, track=input.track, user_id=user_id)
+            if (
+                    (input.takeoff_airport and input.takeoff_airport.id != flight.takeoff_airport_id) or
+                    (data.get('takeoff_datetime') and data.get('takeoff_datetime') != flight.takeoff_datetime)
+            ):
+                await handle_airport_changed(
+                    db,
+                    flight,
+                    takeoff_airport,
+                    type_="takeoff",
+                    input_datetime=data.get('takeoff_datetime')
+                )
 
-        copilots = await handle_copilots_edit(db, input.copilots or [], user_id)
-        await db.execute(delete(flight_has_copilot).filter_by(flight_id=flight.id))
-        for copilot_id in copilots:
-            await db.execute(insert(flight_has_copilot).values(flight_id=flight.id, copilot_id=copilot_id))
+            if (
+                    (input.landing_airport and input.landing_airport.id != flight.landing_airport_id) or
+                    (data.get('landing_datetime') and data.get('landing_datetime') != flight.takeoff_datetime)
+            ):
+                await handle_airport_changed(
+                    db,
+                    flight,
+                    landing_airport,
+                    type_="landing",
+                    input_datetime=data.get('landing_datetime')
+                )
 
-        return await models.Flight.update(db, obj=flight, data=data)
+            if input.aircraft is not None:
+                data['aircraft_id'] = await handle_aircraft_save(db, user_id, input.aircraft)
+
+            if input.track is not None:
+                await handle_track_edit(db=db, flight=flight, track=input.track, user_id=user_id)
+
+            copilots = await handle_copilots_edit(db, input.copilots or [], user_id)
+            await db.execute(delete(flight_has_copilot).filter_by(flight_id=flight.id))
+            for copilot_id in copilots:
+                await db.execute(insert(flight_has_copilot).values(flight_id=flight.id, copilot_id=copilot_id))
+
+            updated_flight = await models.Flight.update(db, obj=flight, data=data)
+
+            return Flight(**updated_flight.as_dict())
 
 
 @strawberry.type
@@ -305,13 +327,15 @@ class DeleteFlightMutation:
     @strawberry.mutation
     @authenticated_user_only()
     async def delete_flight(self, info, id: int) -> Flight:
-        flight = (
-            (await info.context.db.scalars(
-                get_base_query(user_id=info.context.user_id, is_auth=True)
-                .filter(models.Flight.id == id))
-             )
-            .one()
-        )
-        flight.deleted = True
+        async with get_session() as db:
+            flight = (
+                (await db.scalars(
+                    get_base_query(user_id=info.context.user_id, is_auth=True)
+                    .filter(models.Flight.id == id))
+                 )
+                .one()
+            )
 
-        return flight
+            updated_flight = await models.Flight.update(db, obj=flight, data=dict(deleted=True))
+
+            return Flight(**updated_flight.as_dict())

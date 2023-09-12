@@ -3,6 +3,7 @@ from .entities.aircraft import AircraftQueries
 from .entities.airport import AirportQueries
 from .entities.copilot import CopilotQueries
 from .entities.flight import FlightQueries
+from .entities.photo import PhotoQueries
 from .entities.poi import PointOfInterestQueries
 from .entities.poi_type import PointOfInterestTypeQueries
 from .entities.user import UserQueries
@@ -16,6 +17,7 @@ Query = merge_types('Query', (
     FlightQueries,
     CopilotQueries,
     UserQueries,
+    PhotoQueries,
     PointOfInterestQueries,
     PointOfInterestTypeQueries,
 ))
