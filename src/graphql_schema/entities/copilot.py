@@ -53,7 +53,6 @@ class CopilotQueries:
 
 @strawberry.type
 class CreateCopilotMutation:
-
     @strawberry_sqlalchemy_input(model=models.Copilot, exclude_fields=["id"])
     class CreateCopilotInput:
         pass
@@ -76,7 +75,6 @@ class CreateCopilotMutation:
 
 @strawberry.type
 class EditCopilotMutation:
-
     @strawberry_sqlalchemy_input(model=models.Copilot, exclude_fields=["id"])
     class EditCopilotInput:
         pass
@@ -84,12 +82,10 @@ class EditCopilotMutation:
     @strawberry.mutation
     @authenticated_user_only()
     async def edit_copilot(root, info, id: int, input: EditCopilotInput) -> Copilot:
-
         async with get_session() as db:
             copilot = (await db.scalars(
                 get_base_query(info.context.user_id).filter(models.Copilot.id == id)
             )).one()
-
 
             updated_copilot = await models.Copilot.update(db, obj=copilot, data=input.to_dict())
             return Copilot(**updated_copilot.as_dict())

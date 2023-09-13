@@ -37,7 +37,7 @@ class Weather:
         query_string = urllib.parse.urlencode(params)
         return f"{url}{query_string}"
 
-    @cached(ttl=6*3600)
+    @cached(ttl=6 * 3600)
     async def download_weather_for_day(self, date: datetime.date, gps: Tuple[float, float]):
         url = self.get_weather_info_url(start_date=date, end_date=date, gps=gps)
 
@@ -46,7 +46,8 @@ class Weather:
                 resp.raise_for_status()
                 return await resp.json()
 
-    async def get_weather_for_hour(self, date_time: datetime.datetime, gps: Tuple[float, float]) -> Dict[str, float|str]:
+    async def get_weather_for_hour(
+            self, date_time: datetime.datetime, gps: Tuple[float, float]) -> Dict[str, float | str]:
         data = await self.download_weather_for_day(date_time.date(), gps)
 
         # TODO: kontrola timezone!

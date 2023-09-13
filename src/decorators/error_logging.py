@@ -9,6 +9,6 @@ def error_logging(func):
         try:
             return await func(*args, **kwargs)
         except NoResultFound as e:
-            raise GraphQLError(f"Not found", original_error=e)
+            raise GraphQLError("Not found", original_error=e)
 
     return decorator

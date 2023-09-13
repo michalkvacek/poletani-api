@@ -1,11 +1,10 @@
-from typing import List, Optional
+from typing import List
 import strawberry
 from sqlalchemy import select, or_
 from database import models
 from decorators.endpoints import authenticated_user_only
 from dependencies.db import get_session
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
-from graphql_schema.types import ComboboxInput
 
 
 @strawberry_sqlalchemy_type(models.PointOfInterestType)

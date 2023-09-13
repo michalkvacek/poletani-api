@@ -1,26 +1,33 @@
 import asyncio
 from datetime import datetime
 from typing import List, Type, Literal, Optional, Tuple
-
 from aiohttp import ClientResponseError
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.background import BackgroundTasks
 from strawberry.file_uploads import Upload
-
 from database import models
-from external.elevation import ElevationAPI, elevation_api
+from dependencies.db import get_session
+from external.elevation import elevation_api
 from external.gpx_parser import GPXParser
 from external.weather import Weather
 from graphql_schema.types import ComboboxInput
-from upload_utils import delete_file, file_exists, handle_file_upload
+from upload_utils import delete_file, handle_file_upload
 
 weather_api = Weather()
 
 
-async def handle_weather_info(db: AsyncSession, date_time: datetime, airport: models.Airport) -> models.WeatherInfo:
-    weather = await weather_api.get_weather_for_hour(date_time.astimezone(), (airport.gps_latitude, airport.gps_longitude))
+async def handle_weather_info(db: AsyncSession, date_time: datetime, airport: models.Airport) -> Optional[models.WeatherInfo]:
+    if not airport.gps_latitude or not airport.gps_longitude:
+        return None
 
+    try:
+        weather = await weather_api.get_weather_for_hour(
+            date_time.astimezone(),
+            gps=(airport.gps_latitude, airport.gps_longitude)
+        )
+    except Exception as e:
+        print(e)
+        return None
     model = models.WeatherInfo(**{
         "datetime": weather['datetime'],
         "qnh": weather['pressure_msl'],
@@ -56,7 +63,10 @@ async def handle_track_edit(db: AsyncSession, flight: models.Flight, track: List
             poi_object = poi_map.get(item.id)
 
         if not poi_object:
-            poi_object = await models.PointOfInterest.create(db, data=dict(created_by_id=user_id, name=item.name, description=""))
+            poi_object = await models.PointOfInterest.create(
+                db,
+                data=dict(created_by_id=user_id, name=item.name, description="")
+            )
             await db.flush()
 
         await models.FlightTrack.create(
@@ -82,7 +92,21 @@ async def handle_aircraft_save(db: AsyncSession, user_id: int, aircraft: Combobo
         })
 
 
-async def get_airports(db, takeoff_airport_id: int, landing_airport_id: int) -> Tuple[models.Airport, models.Airport]:
+async def get_airports(db, takeoff_airport: ComboboxInput, landing_airport: ComboboxInput, user_id: int) -> Tuple[models.Airport, models.Airport]:
+    takeoff_airport_id = await handle_combobox_save(
+        db, models.Airport, takeoff_airport, user_id,
+        name_column="icao_code", extra_data={"name": takeoff_airport.name}
+    )
+
+    if landing_airport.id != takeoff_airport_id or landing_airport.name != takeoff_airport.name:
+        landing_airport_id = await handle_combobox_save(
+            db, models.Airport, landing_airport, user_id,
+            name_column="icao_code",
+            extra_data={"name": landing_airport.name}
+        )
+    else:
+        landing_airport_id = takeoff_airport_id
+
     takeoff_airport = (await db.scalars(
         select(models.Airport).filter(models.Airport.id == takeoff_airport_id)
     )).one()
@@ -103,39 +127,39 @@ async def handle_airport_changed(
 ):
     flight_datetime = getattr(flight, f"{type_}_datetime")
     if input_datetime and input_datetime != flight_datetime:
-        weather = await handle_weather_info(db, input_datetime, airport)
-        await db.flush()
-
         existing_weather_id = getattr(flight, f"{type_}_weather_info_id")
         if existing_weather_id:
             # db.delete(delete())
             pass
 
-        setattr(flight, f"{type_}_weather_info_id", weather.id)
+        weather = await handle_weather_info(db, input_datetime, airport)
+        await db.flush()
+        if weather:
+            setattr(flight, f"{type_}_weather_info_id", weather.id)
 
     setattr(flight, f"{type_}_airport_id", airport.id)
     setattr(flight, f"{type_}_datetime", input_datetime)
 
 
-async def add_terrain_elevation(db: AsyncSession, flight: models.Flight, gpx_filename: str):
+async def add_terrain_elevation(flight: dict, gpx_filename: str):
     path = "/app/uploads/tracks"  # TODO vytahnout do configu
 
     gpx_parser = GPXParser(f"{path}/{gpx_filename}")
-
     coordinates = await gpx_parser.get_coordinates()
-    print("AAAAAAAAAAAAAAAAAAAAAAAAA", coordinates)
 
     try:
         elevation = await elevation_api.get_elevation_for_points(coordinates)
-        print("ELEVATION", elevation)
         tree_with_elevation = gpx_parser.add_terrain_elevation(elevation)
         output_name = f"terrain_{gpx_filename}"
         gpx_parser.write(tree_with_elevation, f"{path}/{output_name}")
-        await models.Flight.update(db, {"gpx_track_filename": output_name, "has_terrain_elevation": True}, obj=flight)
 
-    except ClientResponseError:
-        print("NEumim elevation!")
+        async with get_session() as db:
+            await models.Flight.update(
+                db, {"gpx_track_filename": output_name, "has_terrain_elevation": True},
+                id=flight['id'])
 
+    except ClientResponseError as e:
+        print(e)
 
 
 async def handle_upload_gpx(flight: models.Flight, gpx_track: Upload):

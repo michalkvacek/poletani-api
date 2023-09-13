@@ -1,9 +1,8 @@
 import asyncio
 from datetime import timedelta, datetime
-from typing import List, Optional, Annotated, TYPE_CHECKING, Tuple
+from typing import List, Optional, Annotated, TYPE_CHECKING
 import strawberry
 from fastapi import HTTPException
-from lxml import etree
 from sqlalchemy import select, insert, delete
 from starlette.status import HTTP_401_UNAUTHORIZED
 from strawberry.file_uploads import Upload
@@ -25,7 +24,10 @@ from graphql_schema.entities.photo import Photo
 from graphql_schema.entities.poi import PointOfInterest
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from upload_utils import get_public_url
-from .helpers.flight import handle_aircraft_save, handle_track_edit, handle_copilots_edit, handle_weather_info, get_airports, handle_upload_gpx, handle_airport_changed, add_terrain_elevation
+from .helpers.flight import (
+    handle_aircraft_save, handle_track_edit, handle_copilots_edit, handle_weather_info, get_airports,
+    handle_upload_gpx, handle_airport_changed, add_terrain_elevation
+)
 from ..types import ComboboxInput
 
 if TYPE_CHECKING:
@@ -134,7 +136,7 @@ class Flight:
         return await flight_copilots_dataloader.load(root.id)
 
     duration_min_calculated: int = strawberry.field(resolver=duration_min_calculated)
-    copilots: Optional[List[Annotated["Copilot", strawberry.lazy(".copilot")]]] = strawberry.field(resolver=load_copilots)
+    copilots: Optional[List[Annotated["Copilot", strawberry.lazy(".copilot")]]] = strawberry.field(resolver=load_copilots)  # noqa
     aircraft: Aircraft = strawberry.field(resolver=load_aircraft)
     takeoff_airport: Airport = strawberry.field(resolver=load_takeoff_airport)
     landing_airport: Airport = strawberry.field(resolver=load_landing_airport)
@@ -220,7 +222,9 @@ class CreateFlightMutation:
         data = input.to_dict()
 
         async with get_session() as db:
-            takeoff_airport, landing_airport = await get_airports(db, input.takeoff_airport.id, input.landing_airport.id)
+            takeoff_airport, landing_airport = await get_airports(
+                db, input.takeoff_airport, input.landing_airport, info.context.user_id,
+            )
 
             aircraft_id = await handle_aircraft_save(db, info.context.user_id, input.aircraft)
             weather_takeoff, weather_landing = await asyncio.gather(
@@ -231,8 +235,8 @@ class CreateFlightMutation:
 
             flight = await models.Flight.create(db, data={
                 **data,
-                "takeoff_weather_info_id": weather_takeoff.id,
-                "landing_weather_info_id": weather_landing.id,
+                "takeoff_weather_info_id": weather_takeoff.id if weather_takeoff else None,
+                "landing_weather_info_id": weather_landing.id if weather_landing else None,
                 "takeoff_airport_id": takeoff_airport.id,
                 "landing_airport_id": landing_airport.id,
                 "has_terrain_elevation": False,
@@ -268,9 +272,7 @@ class EditFlightMutation:
             )).one()
 
             takeoff_airport, landing_airport = await get_airports(
-                db,
-                takeoff_airport_id=input.takeoff_airport.id if input.takeoff_airport else flight.takeoff_airport_id,
-                landing_airport_id=input.landing_airport.id if input.landing_airport else flight.landing_airport_id,
+                db, input.takeoff_airport, input.landing_airport, info.context.user_id,
             )
 
             data = input.to_dict()
@@ -278,7 +280,7 @@ class EditFlightMutation:
             if input.gpx_track is not None:
                 data['gpx_track_filename'] = await handle_upload_gpx(flight, input.gpx_track)
                 info.context.background_tasks.add_task(
-                    add_terrain_elevation, flight=flight, gpx_filename=data['gpx_track_filename'], db=db
+                    add_terrain_elevation, flight=flight.as_dict(), gpx_filename=data['gpx_track_filename']
                 )
 
             if (

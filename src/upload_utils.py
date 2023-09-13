@@ -62,7 +62,9 @@ async def parse_exif_info(path: str, filename: str) -> dict:
         return exif_info
 
 
-async def resize_image(path: str, filename: str, new_width: int, quality: int = 90, dest_path: str = None, dest_filename: str = None):
+async def resize_image(
+        path: str, filename: str, new_width: int, quality: int = 90, dest_path: str = None, dest_filename: str = None
+):
     if not dest_path:
         dest_path = path
 
@@ -78,7 +80,7 @@ async def resize_image(path: str, filename: str, new_width: int, quality: int = 
         image = image.resize((new_width, new_height), Image.LANCZOS)
         check_directories(dest_path)
         image.save(f"{dest_path}/{dest_filename}", 'JPEG', quality=quality)
-    except UnidentifiedImageError as e:
+    except UnidentifiedImageError:
         pass
 
 

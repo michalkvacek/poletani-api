@@ -34,7 +34,12 @@ class FlightsLoader:
             return [result_data[id_] for id_ in ids]
 
 
-flights_by_copilot_dataloader = DataLoader(load_fn=FlightsLoader(Copilot.id, extra_join=[Flight.copilots]).load, cache=False)
+flights_by_copilot_dataloader = DataLoader(
+    load_fn=FlightsLoader(Copilot.id, extra_join=[Flight.copilots]).load,
+    cache=False
+)
 flights_by_aircraft_dataloader = DataLoader(load_fn=FlightsLoader(Flight.aircraft_id).load, cache=False)
-
-flight_by_poi_dataloader = DataLoader(load_fn=FlightsLoader(PointOfInterest.id, extra_join=[Flight.track, PointOfInterest]).load, cache=False)
+flight_by_poi_dataloader = DataLoader(
+    load_fn=FlightsLoader(PointOfInterest.id, extra_join=[Flight.track, PointOfInterest]).load,
+    cache=False
+)

@@ -1,4 +1,3 @@
-from functools import wraps
 from typing import Optional
 import strawberry
 from graphql import GraphQLError
@@ -79,7 +78,7 @@ class EditUserMutation:
             )).one()
 
             user_image_path = f"/app/uploads/profile/{user.id}"
-            data = input.to_dict()
+            data = {key: getattr(input, key) for key in ("name", "description", "public_username") if getattr(input, key) is not None}
             if input.avatar_image:
                 if user.avatar_image_filename:
                     delete_file(f"{user_image_path}/{user.avatar_image_filename}", silent=True)

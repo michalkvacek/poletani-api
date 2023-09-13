@@ -1,14 +1,12 @@
 from datetime import timedelta
 from fastapi import FastAPI, APIRouter, Depends, Security
 from fastapi_jwt import JwtAuthorizationCredentials, JwtAccessBearerCookie, JwtRefreshBearerCookie
-from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.background import BackgroundTasks
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse, Response
 from starlette.staticfiles import StaticFiles
 from strawberry.fastapi import GraphQLRouter
 from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG, ALLOW_CORS_ORIGINS
-from dependencies.db import db_session
 from endpoints.login import LoginEndpoint, LoginInput, RefreshEndpoint, LogoutEndpoint
 from endpoints.registration import RegistrationInput, RegistrationEndpoint
 from graphql_schema.schema import schema, GraphQLContext
@@ -97,23 +95,22 @@ class App:
             ).on_post(resp, credentials)
 
         @self.api_router.post("/login")
-        async def login(resp: Response, user: LoginInput, db: AsyncSession = Depends(db_session)):
+        async def login(resp: Response, user: LoginInput):
             return await LoginEndpoint(
-                db=db,
                 access_token=self.access_security,
                 refresh_token=self.refresh_security
             ).on_post(user, resp)
 
         @self.api_router.post("/logout")
-        async def login(resp: Response):
+        async def logout(resp: Response):
             return await LogoutEndpoint(
                 access_token=self.access_security,
                 refresh_token=self.refresh_security
             ).on_post(resp)
 
         @self.api_router.post("/registration", status_code=201)
-        async def registration(user: RegistrationInput, db: AsyncSession = Depends(db_session)):
-            return await RegistrationEndpoint(db=db).on_post(user)
+        async def registration(user: RegistrationInput):
+            return await RegistrationEndpoint().on_post(user)
 
         # musi byt na konci
         app.include_router(self.api_router)

@@ -4,7 +4,7 @@ from sqlalchemy import select
 from typing import Optional
 from pydantic import BaseModel, root_validator, Field
 from database.models import User
-from endpoints.base import BaseEndpoint
+from dependencies.db import get_session
 from passlib.hash import bcrypt
 
 
@@ -23,22 +23,19 @@ class RegistrationInput(BaseModel):
         return values
 
 
-class RegistrationEndpoint(BaseEndpoint):
-
+class RegistrationEndpoint:
     async def on_post(self, user_data: RegistrationInput) -> User:
         query = select(User).filter_by(email=user_data.email)
-        existing_user = (await self.db.scalars(query)).first()
+        async with get_session() as db:
+            existing_user = (await db.scalars(query)).first()
 
-        if existing_user:
-            raise HTTPException(status_code=422, detail="User already exists")
+            if existing_user:
+                raise HTTPException(status_code=422, detail="User already exists")
 
-        model = await User.create(self.db, {
-            "name": user_data.name,
-            "email": user_data.email,
-            "password_hashed": bcrypt.hash(user_data.password),
-            "description": ""
-        })
-
-        await self.db.commit()
-
-        return model.as_dict()
+            model = await User.create(db, {
+                "name": user_data.name,
+                "email": user_data.email,
+                "password_hashed": bcrypt.hash(user_data.password),
+                "description": ""
+            })
+            return model.as_dict()

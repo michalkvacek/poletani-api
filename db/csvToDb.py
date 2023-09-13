@@ -3,7 +3,16 @@ import csv
 
 def deg_to_dec(val: str):
 
-    val = val[:-1].lstrip("0")
+    val = float(val[:-1]) / 100
+    deg = int(val)
+    frac = val % 1
+
+
+
+    print(frac, frac * 60, frac * 3600)
+
+    return deg + (frac * 60)
+
     # h_m, s = val.split(".")
     # h_m = h_m.strip("0")
     # h = int(h_m[0:2])
@@ -16,15 +25,19 @@ def deg_to_dec(val: str):
     # print("--konec-----------------------------------")
     # return h + (m / 60.0) + (int(s) / 3600.0)
 
-    return len(val or "")
+    # return val
+
+    # return len(val or "")
 
 # ZDAKOV: @49.504378,14.1808905
+
+# 4930.250N / 100 -> cele cislo stupne, desetinne prevest do sedesatkove soustavy
 
 with open("./poi.csv") as f:
     reader = csv.DictReader(f)
 
     for row in reader:
-        # if row['name'] != 'ZDAKOV':
-        #     continue
+        if row['name'] != 'ZDAKOV':
+            continue
 
         print(row['name'], row['lat'], row['lon'], deg_to_dec(row['lat']), deg_to_dec(row['lon']))

@@ -7,10 +7,11 @@ from database import models
 from decorators.endpoints import authenticated_user_only
 from dependencies.db import get_session
 from graphql_schema.dataloaders.poi import poi_dataloader
-from graphql_schema.entities.poi import PointOfInterest
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
 from graphql_schema.types import ComboboxInput
-from upload_utils import get_public_url, handle_file_upload, delete_file, parse_exif_info, generate_thumbnail, file_exists, resize_image
+from upload_utils import (
+    get_public_url, handle_file_upload, delete_file, parse_exif_info, generate_thumbnail, file_exists, resize_image
+)
 from .helpers.flight import handle_combobox_save
 
 if TYPE_CHECKING:
@@ -37,7 +38,7 @@ class Photo:
 
     url: str = strawberry.field(resolver=resolve_url)
     thumbnail_url: str = strawberry.field(resolver=resolve_thumb_url)
-    point_of_interest: Optional[Annotated["PointOfInterest", strawberry.lazy('.poi')]] = strawberry.field(resolver=load_poi)
+    point_of_interest: Optional[Annotated["PointOfInterest", strawberry.lazy('.poi')]] = strawberry.field(resolver=load_poi)  # noqa
 
 
 def get_base_query(user_id: int):
@@ -161,10 +162,7 @@ class DeletePhotoMutation:
             photo = Photo(**photo_model.as_dict())
 
         base_path = get_photo_basepath(photo.flight_id)
-        try:
-            delete_file(f"{base_path}/{photo.filename}")
-            delete_file(f"{base_path}/thumbs/{photo.filename}")
-        except Exception as e:
-            print(e)
+        delete_file(f"{base_path}/{photo.filename}", silent=True)
+        delete_file(f"{base_path}/thumbs/{photo.filename}", silent=True)
 
         return photo_model

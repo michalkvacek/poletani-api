@@ -77,13 +77,16 @@ class CreateAircraftMutation:
         if input.photo:
             input_data['photo_filename'] = await handle_file_upload(input.photo, AIRCRAFT_UPLOAD_DEST_PATH)
 
-        return await models.Aircraft.create(
-            db,
-            data=dict(
-                **input_data,
-                created_by_id=info.context.user_id,
+        async with get_session() as db:
+            aircraft = await models.Aircraft.create(
+                db,
+                data=dict(
+                    **input_data,
+                    created_by_id=info.context.user_id,
+                )
             )
-        )
+
+            return Aircraft(**aircraft.as_dict())
 
 
 @strawberry.type

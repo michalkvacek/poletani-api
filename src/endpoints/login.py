@@ -4,7 +4,8 @@ from passlib.hash import bcrypt
 from sqlalchemy import select
 from starlette.responses import Response
 from database.models import User
-from endpoints.base import BaseEndpoint, AuthEndpoint
+from dependencies.db import get_session
+from endpoints.base import AuthEndpoint
 from pydantic import BaseModel
 
 
@@ -13,18 +14,21 @@ class LoginInput(BaseModel):
     password: str
 
 
-class LoginEndpoint(AuthEndpoint, BaseEndpoint):
+class LoginEndpoint(AuthEndpoint):
     async def on_post(self, user_data: LoginInput, resp: Response) -> dict:
         query = select(User).filter_by(email=user_data.email)
-        logged_user = (await self.db.scalars(query)).first()
 
-        if not logged_user:
-            raise HTTPException(status_code=401, detail="Invalid user")
+        async with get_session() as db:
+            logged_user = (await db.scalars(query)).first()
+            if not logged_user:
+                raise HTTPException(status_code=401, detail="Invalid user")
 
-        if not bcrypt.verify(user_data.password, logged_user.password_hashed):
+            user = logged_user.as_dict()
+
+        if not bcrypt.verify(user_data.password, user['password_hashed']):
             raise HTTPException(status_code=401, detail="Bad username or password")
 
-        subject = {"id": logged_user.id, "email": logged_user.email}
+        subject = {"id": user['id'], "email": user['email']}
         access_token = self.access_security.create_access_token(subject=subject)
         refresh_token = self.refresh_security.create_refresh_token(subject=subject)
 
@@ -35,7 +39,7 @@ class LoginEndpoint(AuthEndpoint, BaseEndpoint):
         )
 
         return {
-            "user": logged_user.as_dict(),
+            "user": user,
             "access_token": access_token,
             "access_token_validity": self.access_security.access_expires_delta.total_seconds(),
         }

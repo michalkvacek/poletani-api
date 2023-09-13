@@ -1,13 +1,12 @@
 import asyncio
 import sys
-
 from sqlalchemy import select
 
 sys.path.insert(0, "/app/src")
 
-from database import async_session, models
-from external.elevation import elevation_api
-from external.gpx_parser import GPXParser
+from database import async_session, models  # noqa
+from external.elevation import elevation_api  # noqa
+from external.gpx_parser import GPXParser  # noqa
 
 
 async def add_elevation_to_photos():
@@ -17,7 +16,9 @@ async def add_elevation_to_photos():
             .filter(models.Photo.terrain_elevation.is_(None))
         )).all()
 
-        coordinates = [{"lat": p.gps_latitude, "lng": p.gps_longitude} for p in photos if p.gps_latitude or p.gps_longitude]
+        coordinates = [
+            {"lat": p.gps_latitude, "lng": p.gps_longitude} for p in photos if p.gps_latitude or p.gps_longitude
+        ]
         photos_by_corrdinates = {(p.gps_latitude, p.gps_longitude): p for p in photos}
         if not coordinates:
             print("all done")
@@ -35,7 +36,7 @@ async def add_elevation_to_tracks():
     async with async_session() as session:
         flights = (await session.scalars(
             select(models.Flight)
-            .filter(models.Flight.has_terrain_elevation == False)
+            .filter(models.Flight.has_terrain_elevation.is_(False))
             .filter(models.Flight.gpx_track_filename.isnot(None))
         )).all()
 

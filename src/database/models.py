@@ -64,12 +64,12 @@ class Airport(BaseModel):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     icao_code: Mapped[str] = mapped_column(String(8), nullable=False)
-    gps_latitude: Mapped[float] = mapped_column(Float, nullable=False)
-    gps_longitude: Mapped[float] = mapped_column(Float, nullable=False)
+    gps_latitude: Mapped[float] = mapped_column(Float, nullable=True)
+    gps_longitude: Mapped[float] = mapped_column(Float, nullable=True)
     elevation: Mapped[int] = mapped_column(Integer, nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, server_default='0')
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'), nullable=True)  # automaticky import nebude mit ID
+    created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'), nullable=True)  # automaticky import nebude mit ID  # noqa
     deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
 
     metars: Mapped['Metar'] = relationship(back_populates="airport")
