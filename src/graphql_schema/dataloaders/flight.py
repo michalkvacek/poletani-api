@@ -3,7 +3,7 @@ from typing import List, Optional
 from sqlalchemy import select
 from strawberry.dataloader import DataLoader
 from database import async_session
-from database.models import Flight, Copilot, PointOfInterest
+from database.models import Flight, Copilot, PointOfInterest, Event
 
 
 class FlightsLoader:
@@ -41,5 +41,10 @@ flights_by_copilot_dataloader = DataLoader(
 flights_by_aircraft_dataloader = DataLoader(load_fn=FlightsLoader(Flight.aircraft_id).load, cache=False)
 flight_by_poi_dataloader = DataLoader(
     load_fn=FlightsLoader(PointOfInterest.id, extra_join=[Flight.track, PointOfInterest]).load,
+    cache=False
+)
+
+flights_by_event_dataloader = DataLoader(
+    load_fn=FlightsLoader(Event.id, extra_join=[Flight.event]).load,
     cache=False
 )

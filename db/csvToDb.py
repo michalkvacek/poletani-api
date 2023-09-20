@@ -7,6 +7,7 @@ def deg_to_dec(val: str):
     deg = int(val)
     frac = val % 1
 
+    # https://www.pgc.umn.edu/apps/convert/ N47 17.6 E012 47.3
 
 
     print(frac, frac * 60, frac * 3600)

@@ -3,18 +3,10 @@ from typing import List, Optional
 from sqlalchemy import select
 from strawberry.dataloader import DataLoader
 from database import async_session
-from database.models import Aircraft, Organization
+from database.models import Organization, User
 
 
-async def load(ids: List[int]):
-    async with async_session() as session:
-        models = (await session.scalars(select(Aircraft).filter(Aircraft.id.in_(ids)))).all()
-
-        models_by_id = {model.id: model for model in models}
-        return [models_by_id.get(id_) for id_ in ids]
-
-
-class OrganizationLoader:
+class UsersLoader:
     def __init__(self, relationship_column, extra_join: Optional[list] = None):
         if extra_join is None:
             extra_join = []
@@ -26,7 +18,7 @@ class OrganizationLoader:
         async with async_session() as session:
             rel_column = self.relationship_column
             query = (
-                select(Aircraft, rel_column)
+                select(User, rel_column)
                 .filter(rel_column.in_(ids))
             )
 
@@ -42,9 +34,7 @@ class OrganizationLoader:
             return [result_data[id_] for id_ in ids]
 
 
-aircrafts_from_organization_dataloader = DataLoader(
-    load_fn=OrganizationLoader(Organization.id, extra_join=[Aircraft.organization]).load,
+users_in_organization_dataloader = DataLoader(
+    load_fn=UsersLoader(Organization.id, extra_join=[Organization.users]).load,
     cache=False
 )
-
-aircraft_dataloader = DataLoader(load_fn=load, cache=False)

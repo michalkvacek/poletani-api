@@ -1,4 +1,6 @@
 import dataclasses
+from typing import Set
+
 import strawberry
 from fastapi_jwt import JwtAuthorizationCredentials
 from fastapi_jwt.jwt import JwtAccessBearerCookie
@@ -30,6 +32,7 @@ class LoggingExtension(SchemaExtension):
 @dataclasses.dataclass
 class GraphQLContext(BaseContext):
     user_id: int
+    organization_ids: Set[int]
     jwt_auth_credentials: JwtAuthorizationCredentials
     jwt: JwtAccessBearerCookie
     background_tasks: BackgroundTasks

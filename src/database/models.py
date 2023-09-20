@@ -154,19 +154,19 @@ class Aircraft(BaseModel):
     notes: Mapped['AircraftNotes'] = relationship()
 
 
-class AircraftNotes(BaseModel):
-    __tablename__ = "aircraft_notes"
-
-    id: Mapped[int] = mapped_column(primary_key=True)
-    aircraft_id: Mapped[int] = mapped_column(Integer, ForeignKey("aircraft.id"), nullable=False)
-    name: Mapped[str] = mapped_column(String(128), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
-    is_public: Mapped[bool] = mapped_column(Boolean, server_default='0')
-    created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-
-    created_by: Mapped['User'] = relationship()
-    aircraft: Mapped['Aircraft'] = relationship(back_populates="notes")
+# class AircraftNotes(BaseModel):
+#     __tablename__ = "aircraft_notes"
+#
+#     id: Mapped[int] = mapped_column(primary_key=True)
+#     aircraft_id: Mapped[int] = mapped_column(Integer, ForeignKey("aircraft.id"), nullable=False)
+#     name: Mapped[str] = mapped_column(String(128), nullable=False)
+#     description: Mapped[str] = mapped_column(Text, nullable=False)
+#     is_public: Mapped[bool] = mapped_column(Boolean, server_default='0')
+#     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
+#     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+#
+#     created_by: Mapped['User'] = relationship()
+#     aircraft: Mapped['Aircraft'] = relationship(back_populates="notes")
 
 
 class Organization(BaseModel):
@@ -215,11 +215,15 @@ class Event(BaseModel):
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    event_from: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    event_to: Mapped[datetime] = mapped_column(DateTime, nullable=True)
+    organization_id: Mapped[int] = mapped_column(Integer, ForeignKey('organization.id'), nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, server_default='0')
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
 
+    organization: Mapped['Organization'] = relationship()
     created_by: Mapped['User'] = relationship()
 
 

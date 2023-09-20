@@ -26,12 +26,14 @@ from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_t
 from upload_utils import get_public_url
 from .helpers.flight import (
     handle_aircraft_save, handle_track_edit, handle_copilots_edit, handle_weather_info, get_airports,
-    handle_upload_gpx, handle_airport_changed, add_terrain_elevation
+    handle_upload_gpx, handle_airport_changed, add_terrain_elevation, handle_combobox_save
 )
+from ..dataloaders.event import event_dataloader
 from ..types import ComboboxInput
 
 if TYPE_CHECKING:
     from .copilot import Copilot
+    from .event import Event
 
 
 @strawberry_sqlalchemy_type(models.FlightTrack)
@@ -135,8 +137,13 @@ class Flight:
     async def load_copilots(root):
         return await flight_copilots_dataloader.load(root.id)
 
+    @authenticated_user_only(raise_when_unauthorized=False, return_value_unauthorized=[])
+    async def load_event(root):
+        return await event_dataloader.load(root.event_id)
+
     duration_min_calculated: int = strawberry.field(resolver=duration_min_calculated)
     copilots: Optional[List[Annotated["Copilot", strawberry.lazy(".copilot")]]] = strawberry.field(resolver=load_copilots)  # noqa
+    event: Optional[Annotated["Event", strawberry.lazy(".event")]] = strawberry.field(resolver=load_event)
     aircraft: Aircraft = strawberry.field(resolver=load_aircraft)
     takeoff_airport: Airport = strawberry.field(resolver=load_takeoff_airport)
     landing_airport: Airport = strawberry.field(resolver=load_landing_airport)
@@ -259,6 +266,7 @@ class EditFlightMutation:
         aircraft: Optional[ComboboxInput] = None
         landing_airport: Optional[ComboboxInput] = None
         takeoff_airport: Optional[ComboboxInput] = None
+        event: Optional[ComboboxInput] = None
 
     @strawberry.mutation
     @authenticated_user_only()
@@ -271,16 +279,17 @@ class EditFlightMutation:
                 get_base_query(user_id=user_id, is_auth=bool(user_id)).filter(models.Flight.id == id)
             )).one()
 
-            takeoff_airport, landing_airport = await get_airports(
-                db, input.takeoff_airport, input.landing_airport, info.context.user_id,
-            )
-
             data = input.to_dict()
 
             if input.gpx_track is not None:
                 data['gpx_track_filename'] = await handle_upload_gpx(flight, input.gpx_track)
                 info.context.background_tasks.add_task(
                     add_terrain_elevation, flight=flight.as_dict(), gpx_filename=data['gpx_track_filename']
+                )
+
+            if input.takeoff_airport and input.landing_airport:
+                takeoff_airport, landing_airport = await get_airports(
+                    db, input.takeoff_airport, input.landing_airport, info.context.user_id,
                 )
 
             if (
@@ -306,9 +315,19 @@ class EditFlightMutation:
                     type_="landing",
                     input_datetime=data.get('landing_datetime')
                 )
+            # ///////////// konec editace s letistem - je to hnusny
 
             if input.aircraft is not None:
                 data['aircraft_id'] = await handle_aircraft_save(db, user_id, input.aircraft)
+
+            if input.event is not None:
+                data['event_id'] = await handle_combobox_save(
+                    db,
+                    model=models.Event,
+                    input=input.event,
+                    extra_data={"description": "", "is_public": False},
+                    user_id=info.context.user_id
+                )
 
             if input.track is not None:
                 await handle_track_edit(db=db, flight=flight, track=input.track, user_id=user_id)

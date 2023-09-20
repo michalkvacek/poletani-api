@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List, Annotated, TYPE_CHECKING
 import strawberry
 from graphql import GraphQLError
 from passlib.hash import bcrypt
@@ -9,9 +9,12 @@ from database import models
 from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
 from dependencies.db import get_session
+from graphql_schema.dataloaders.organizations import user_organizations_dataloader
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
 from upload_utils import handle_file_upload, delete_file, get_public_url, resize_image
 
+if TYPE_CHECKING:
+    from .organization import Organization
 
 @strawberry_sqlalchemy_type(models.User, exclude_fields=['password_hashed'])
 class User:
@@ -27,8 +30,12 @@ class User:
 
         return get_public_url(f"profile/{root.id}/{root.title_image_filename}")
 
+    async def load_organizations(root):
+        return await user_organizations_dataloader.load(root.id)
+
     avatar_image_url: Optional[str] = strawberry.field(resolver=load_avatar_image_url)
     title_image_url: str = strawberry.field(resolver=load_title_image_url)
+    organizations: List[Annotated['Organization', strawberry.lazy(".organization")]] = strawberry.field(resolver=load_organizations)
 
 
 @strawberry.type

@@ -1,12 +1,15 @@
 from datetime import timedelta
 from fastapi import FastAPI, APIRouter, Depends, Security
 from fastapi_jwt import JwtAuthorizationCredentials, JwtAccessBearerCookie, JwtRefreshBearerCookie
+from sqlalchemy import select
 from starlette.background import BackgroundTasks
 from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse, Response
 from starlette.staticfiles import StaticFiles
 from strawberry.fastapi import GraphQLRouter
 from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG, ALLOW_CORS_ORIGINS
+from database import models, async_session
+from dependencies.db import get_session
 from endpoints.login import LoginEndpoint, LoginInput, RefreshEndpoint, LogoutEndpoint
 from endpoints.registration import RegistrationInput, RegistrationEndpoint
 from graphql_schema.schema import schema, GraphQLContext
@@ -55,9 +58,22 @@ class App:
         app.mount("/static", StaticFiles(directory="/app/static"), name="static")
 
     def setup_graphql_endpoint(self, app: FastAPI):
-        def setup_graphql_context(credentials: JwtAuthorizationCredentials = Security(self.access_security)):
+        async def setup_graphql_context(credentials: JwtAuthorizationCredentials = Security(self.access_security)):
+            user_id = credentials['id'] if credentials else None
+            organization_ids = set()
+
+            if user_id:
+                async with async_session() as db:
+                    organization_ids = set((await db.scalars(
+                        select(models.user_is_in_organization.c.organization_id)
+                        .filter(models.user_is_in_organization.c.user_id == user_id)
+                    )).all())
+
+                    print("ORGANIZATION IDS", organization_ids)
+
             return GraphQLContext(
-                user_id=credentials['id'] if credentials else None,
+                user_id=user_id,
+                organization_ids=organization_ids,
                 jwt_auth_credentials=credentials,
                 jwt=self.access_security,
                 background_tasks=Depends(BackgroundTasks)
