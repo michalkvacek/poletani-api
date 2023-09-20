@@ -151,7 +151,7 @@ class Aircraft(BaseModel):
     organization: Mapped['Organization'] = relationship()
     flights: Mapped[Set['Flight']] = relationship()
     created_by: Mapped['User'] = relationship()
-    notes: Mapped['AircraftNotes'] = relationship()
+    # notes: Mapped['AircraftNotes'] = relationship()
 
 
 # class AircraftNotes(BaseModel):
