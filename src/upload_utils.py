@@ -63,7 +63,9 @@ async def parse_exif_info(path: str, filename: str) -> dict:
 
 
 async def resize_image(
-        path: str, filename: str, new_width: int, quality: int = 90, dest_path: str = None, dest_filename: str = None
+        path: str, filename: str, new_width: int, quality: int = 90,
+        dest_path: Optional[str] = None,
+        dest_filename: Optional[str] = None
 ):
     if not dest_path:
         dest_path = path
@@ -82,6 +84,25 @@ async def resize_image(
         image.save(f"{dest_path}/{dest_filename}", 'JPEG', quality=quality)
     except UnidentifiedImageError:
         pass
+
+
+async def rotate_image(
+        path: str,
+        filename: str,
+        angle: int,
+        dest_path: Optional[str] = None,
+        dest_filename: Optional[str] = None
+):
+    if not dest_path:
+        dest_path = path
+
+    if not dest_filename:
+        dest_filename = filename
+
+    img = Image.open(f"{path}/{filename}")
+    img = img.rotate(angle, Image.LANCZOS, expand=True)
+    check_directories(dest_path)
+    img.save(f"{dest_path}/{dest_filename}", 'JPEG', quality=100)
 
 
 async def generate_thumbnail(path: str, filename: str, quality: int = 90):

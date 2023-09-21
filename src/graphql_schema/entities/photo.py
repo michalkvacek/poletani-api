@@ -1,3 +1,4 @@
+import asyncio
 from typing import List, Optional, Annotated, TYPE_CHECKING
 import strawberry
 from sqlalchemy import select, update
@@ -10,7 +11,7 @@ from graphql_schema.dataloaders.poi import poi_dataloader
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
 from graphql_schema.types import ComboboxInput
 from upload_utils import (
-    get_public_url, handle_file_upload, delete_file, parse_exif_info, generate_thumbnail, file_exists, resize_image
+    get_public_url, handle_file_upload, delete_file, parse_exif_info, generate_thumbnail, file_exists, resize_image, rotate_image
 )
 from .helpers.flight import handle_combobox_save
 
@@ -148,6 +149,31 @@ class EditPhotoMutation:
 
             updated_model = await models.Photo.update(db, obj=photo, data=data)
             return Photo(**updated_model.as_dict())
+
+    @strawberry.mutation()
+    @authenticated_user_only()
+    async def rotate_photo(self, info, id: int, angle: int) -> Photo:
+
+        async with get_session() as db:
+            query = get_base_query(info.context.user_id)
+            photo = (await db.scalars(query.filter(models.Photo.id == id))).one()
+
+            await asyncio.gather(
+                rotate_image(
+                    path=get_photo_basepath(photo.flight_id),
+                    filename=photo.filename,
+                    angle=angle,
+                ),
+                rotate_image(
+                    path=get_photo_basepath(photo.flight_id)+"/thumbs",
+                    filename=photo.filename,
+                    angle=angle,
+                ),
+            )
+
+            return Photo(**photo.as_dict())
+
+
 
 
 @strawberry.type
