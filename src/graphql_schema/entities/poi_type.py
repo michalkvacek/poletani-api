@@ -3,7 +3,7 @@ import strawberry
 from sqlalchemy import select, or_
 from database import models
 from decorators.endpoints import authenticated_user_only
-from dependencies.db import get_session
+from graphql_schema.entities.resolvers.base import get_base_resolver, get_list, get_one
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
 
 
@@ -12,48 +12,20 @@ class PointOfInterestType:
     pass
 
 
-def get_base_query(user_id: int, only_my: bool = False):
-    query = (
-        select(models.PointOfInterestType)
-        .filter(models.PointOfInterestType.deleted.is_(False))
-    )
-
-    if only_my:
-        query = query.filter(models.PointOfInterestType.created_by_id == user_id)
-    else:
-        query = query.filter(or_(
-            models.PointOfInterestType.created_by_id == user_id,
-            models.PointOfInterestType.is_public.is_(True)
-        ))
-
-    return query
-
-
 @strawberry.type
 class PointOfInterestTypeQueries:
 
     @strawberry.field()
     @authenticated_user_only()
     async def point_of_interest_types(root, info) -> List[PointOfInterestType]:
-        query = (
-            get_base_query(info.context.user_id, only_my=False)
-            .order_by(models.PointOfInterestType.id.desc())
-        )
-
-        async with get_session() as db:
-            poi_types = (await db.scalars(query)).all()
-            return [PointOfInterestType(**poi_type.as_dict()) for poi_type in poi_types]
+        query = get_base_resolver(models.PointOfInterestType, user_id=info.context.user_id)
+        return await get_list(models.PointOfInterestType, query)
 
     @strawberry.field()
     @authenticated_user_only()
     async def point_of_interest_type(root, info, id: int) -> PointOfInterestType:
-        query = (
-            get_base_query(info.context.user_id)
-            .filter(models.PointOfInterestType.id == id)
-        )
-        async with get_session() as db:
-            poi_type = (await db.scalars(query)).one()
-            return PointOfInterestType(**poi_type.as_dict())
+        query = get_base_resolver(models.PointOfInterestType, user_id=info.context.user_id, object_id=id)
+        return await get_one(models.PointOfInterestType, query)
 
 #
 # @strawberry.type

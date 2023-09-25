@@ -13,7 +13,8 @@ from graphql_schema.types import ComboboxInput
 from upload_utils import (
     get_public_url, handle_file_upload, delete_file, parse_exif_info, generate_thumbnail, file_exists, resize_image, rotate_image
 )
-from .helpers.flight import handle_combobox_save
+from graphql_schema.entities.helpers.combobox import handle_combobox_save
+from .resolvers.base import get_base_resolver, get_list
 
 if TYPE_CHECKING:
     from .poi import PointOfInterest
@@ -58,11 +59,8 @@ def get_photo_basepath(flight_id: int) -> str:
 class PhotoQueries:
     @strawberry.field()
     async def photos(root, info) -> List[Photo]:
-        query = get_base_query(info.context.user_id)
-
-        async with get_session() as db:
-            photos = (await db.scalars(query)).all()
-            return [Photo(**photo.as_dict()) for photo in photos]
+        query = get_base_resolver(models.Photo, user_id=info.context.user_id)
+        return await get_list(models.Photo, query)
 
 
 @strawberry.type
@@ -97,6 +95,7 @@ class UploadPhotoMutation:
             }, db_session=db)
             photo = Photo(**photo_model.as_dict())
 
+        # TODO: udelat primo konkretni bg joby na resize a thumbnaily
         info.context.background_tasks.add_task(resize_image, path=path, filename=filename, new_width=2500, quality=85)
         info.context.background_tasks.add_task(generate_thumbnail, path=path, filename=filename)
 
@@ -118,15 +117,16 @@ class EditPhotoMutation:
     @strawberry.mutation()
     @authenticated_user_only()
     async def edit_photo(self, info, id: int, input: EditPhotoInput) -> Photo:
-        query = get_base_query(info.context.user_id)
 
+        # TODO: base trida pro inputy s definici to_dict/as_dict?
         data = {
             key: getattr(input, key) for key in ('name', 'description', 'is_flight_cover')
             if getattr(input, key) is not None
         }
 
+        query = get_base_resolver(models.Photo, user_id=info.context.user_id, object_id=id)
         async with get_session() as db:
-            photo = (await db.scalars(query.filter(models.Photo.id == id))).one()
+            photo = (await db.scalars(query)).one()
 
             if input.point_of_interest:
                 data['point_of_interest_id'] = await handle_combobox_save(
@@ -155,8 +155,8 @@ class EditPhotoMutation:
     async def rotate_photo(self, info, id: int, angle: int) -> Photo:
 
         async with get_session() as db:
-            query = get_base_query(info.context.user_id)
-            photo = (await db.scalars(query.filter(models.Photo.id == id))).one()
+            query = get_base_resolver(models.Photo, user_id=info.context.user_id, object_id=id)
+            photo = (await db.scalars(query)).one()
 
             await asyncio.gather(
                 rotate_image(

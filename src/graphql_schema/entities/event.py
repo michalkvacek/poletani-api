@@ -6,6 +6,7 @@ from decorators.endpoints import authenticated_user_only
 from dependencies.db import get_session
 from graphql_schema.dataloaders.flight import flights_by_event_dataloader
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
+from .resolvers.base import get_base_resolver, get_list, get_one
 
 if TYPE_CHECKING:
     from .flight import Flight
@@ -19,36 +20,22 @@ class Event:
     flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(resolver=load_flights)
 
 
-def get_base_query(user_id: int):
-    return (
-        select(models.Event)
-        .filter(models.Event.created_by_id == user_id)
-        .filter(models.Event.deleted.is_(False))
-        .order_by(models.Event.date_from.desc(), models.Event.id.desc())
-    )
-
-
 @strawberry.type
 class EventQueries:
     @strawberry.field()
     @authenticated_user_only()
     async def events(root, info) -> List[Event]:
-        async with get_session() as db:
-            events = (await db.scalars(
-                get_base_query(info.context.user_id)
-            )).all()
-
-            return [Event(**c.as_dict()) for c in events]
+        query = get_base_resolver(
+            models.Event, user_id=info.context.user_id,
+            order_by=[models.Event.date_from.desc(), models.Event.id.desc()]
+        )
+        return await get_list(models.Event, query)
 
     @strawberry.field()
     @authenticated_user_only()
     async def event(root, info, id: int) -> Event:
-        async with get_session() as db:
-            event = (await db.scalars(
-                get_base_query(info.context.user_id)
-                .filter(models.Event.id == id)
-            )).one()
-            return Event(**event.as_dict())
+        query = get_base_resolver(models.Event, user_id=info.context.user_id, object_id=id)
+        return await get_one(models.Event, query)
 
 
 @strawberry.type
@@ -84,7 +71,7 @@ class EditEventMutation:
     async def edit_event(root, info, id: int, input: EditEventInput) -> Event:
         async with get_session() as db:
             event = (await db.scalars(
-                get_base_query(info.context.user_id).filter(models.Event.id == id)
+                get_base_resolver(models.Event, user_id=info.context.user_id, object_id=id)
             )).one()
 
             updated_event = await models.Event.update(db, obj=event, data=input.to_dict())

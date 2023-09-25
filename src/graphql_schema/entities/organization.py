@@ -1,13 +1,13 @@
 from typing import List, Annotated, TYPE_CHECKING
 import strawberry
-from sqlalchemy import select, or_, delete
+from sqlalchemy import select, delete
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.exc import IntegrityError
-
 from database import models
 from decorators.endpoints import authenticated_user_only
 from dependencies.db import get_session
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
+from .resolvers.base import get_base_resolver, get_list, get_one
 from ..dataloaders.aircraft import aircrafts_from_organization_dataloader
 from ..dataloaders.users import users_in_organization_dataloader
 
@@ -29,33 +29,19 @@ class Organization:
     aircrafts: List[Annotated["Aircraft", strawberry.lazy(".aircraft")]] = strawberry.field(resolver=load_aircrafts)
 
 
-def get_base_query():
-    return (
-        select(models.Organization)
-        .filter(models.Organization.deleted.is_(False))
-        .order_by(models.Organization.name)
-    )
-
-
 @strawberry.type
 class OrganizationQueries:
     @strawberry.field()
     @authenticated_user_only()
     async def organizations(root, info) -> List[Organization]:
-        async with get_session() as db:
-            organizations = (await db.scalars(get_base_query())).all()
-
-            return [Organization(**c.as_dict()) for c in organizations]
+        query = get_base_resolver(models.Organization, order_by=[models.Organization.name])
+        return await get_list(models.Organization, query)
 
     @strawberry.field()
     @authenticated_user_only()
     async def organization(root, info, id: int) -> Organization:
-        async with get_session() as db:
-            organization = (await db.scalars(
-                get_base_query()
-                .filter(models.Organization.id == id)
-            )).one()
-            return Organization(**organization.as_dict())
+        query = get_base_resolver(models.Organization, object_id=id)
+        return await get_one(models.Organization, query)
 
 
 @strawberry.type
@@ -87,7 +73,7 @@ class OrganizationUserMutation:
     @authenticated_user_only()
     async def add_to_organization(root, info, organization_id: int) -> Organization:
         async with get_session() as db:
-            organization = (await db.scalars(get_base_query().filter(models.Organization.id == organization_id))).one()
+            organization = (await db.scalars(get_base_resolver(models.Organization, object_id=organization_id))).one()
 
             try:
                 await db.execute(
@@ -106,7 +92,7 @@ class OrganizationUserMutation:
     @authenticated_user_only()
     async def remove_from_organization(root, info, organization_id: int) -> Organization:
         async with get_session() as db:
-            organization = (await db.scalars(get_base_query().filter(models.Organization.id == organization_id))).one()
+            organization = (await db.scalars(get_base_resolver(models.Organization, object_id=organization_id))).one()
 
             await db.execute(
                 delete(models.user_is_in_organization).filter_by(
@@ -116,7 +102,6 @@ class OrganizationUserMutation:
             )
 
             return Organization(**organization.as_dict())
-
 
 
 @strawberry.type
@@ -130,9 +115,7 @@ class EditOrganizationMutation:
     async def edit_organization(root, info, id: int, input: EditOrganizationInput) -> Organization:
         async with get_session() as db:
             organization = (await db.scalars(
-                get_base_query()
-                .filter(models.Organization.created_by_id == info.context.user_id)
-                .filter(models.Organization.id == id)
+                get_base_resolver(models.Organization, user_id=info.context.user_id, object_id=id)
             )).one()
 
             updated_organization = await models.Organization.update(db, obj=organization, data=input.to_dict())

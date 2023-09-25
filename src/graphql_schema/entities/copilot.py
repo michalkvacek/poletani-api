@@ -6,6 +6,7 @@ from decorators.endpoints import authenticated_user_only
 from dependencies.db import get_session
 from graphql_schema.dataloaders.flight import flights_by_copilot_dataloader
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
+from .resolvers.base import get_base_resolver, get_list, get_one
 
 if TYPE_CHECKING:
     from .flight import Flight
@@ -19,36 +20,19 @@ class Copilot:
     flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(resolver=load_flights)
 
 
-def get_base_query(user_id: int):
-    return (
-        select(models.Copilot)
-        .filter(models.Copilot.created_by_id == user_id)
-        .filter(models.Copilot.deleted.is_(False))
-        .order_by(models.Copilot.name)
-    )
-
-
 @strawberry.type
 class CopilotQueries:
     @strawberry.field()
     @authenticated_user_only()
     async def copilots(root, info) -> List[Copilot]:
-        async with get_session() as db:
-            copilots = (await db.scalars(
-                get_base_query(info.context.user_id)
-            )).all()
-
-            return [Copilot(**c.as_dict()) for c in copilots]
+        query = get_base_resolver(models.Copilot, user_id=info.context.user_id, order_by=[models.Copilot.name])
+        return await get_list(models.Copilot, query)
 
     @strawberry.field()
     @authenticated_user_only()
     async def copilot(root, info, id: int) -> Copilot:
-        async with get_session() as db:
-            copilot = (await db.scalars(
-                get_base_query(info.context.user_id)
-                .filter(models.Copilot.id == id)
-            )).one()
-            return Copilot(**copilot.as_dict())
+        query = get_base_resolver(models.Copilot, object_id=id, user_id=info.context.user_id)
+        return await get_one(models.Copilot, query)
 
 
 @strawberry.type
@@ -84,7 +68,7 @@ class EditCopilotMutation:
     async def edit_copilot(root, info, id: int, input: EditCopilotInput) -> Copilot:
         async with get_session() as db:
             copilot = (await db.scalars(
-                get_base_query(info.context.user_id).filter(models.Copilot.id == id)
+                query=get_base_resolver(models.Copilot, object_id=id, user_id=info.context.user_id)
             )).one()
 
             updated_copilot = await models.Copilot.update(db, obj=copilot, data=input.to_dict())

@@ -1,13 +1,14 @@
 from typing import List, Optional, Annotated, TYPE_CHECKING, Set
 import strawberry
 from strawberry.file_uploads import Upload
-from sqlalchemy import select, or_
 from database import models
 from decorators.endpoints import authenticated_user_only
 from dependencies.db import get_session
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from upload_utils import handle_file_upload, delete_file, get_public_url
-from .helpers.flight import handle_combobox_save
+from graphql_schema.entities.helpers.combobox import handle_combobox_save
+from .resolvers.aircraft import get_aircraft_resolver
+from .resolvers.base import get_list, get_one
 from ..dataloaders.flight import flights_by_aircraft_dataloader
 from ..dataloaders.organizations import organizations_dataloader
 from ..types import ComboboxInput
@@ -36,43 +37,19 @@ class Aircraft:
     )
 
 
-def get_base_query(user_id: int, organization_ids: Set[int]):
-    return (
-        select(models.Aircraft)
-        .filter(
-            or_(
-                models.Aircraft.created_by_id == user_id,
-                models.Aircraft.organization_id.in_(organization_ids)
-            )
-        )
-        .filter(models.Aircraft.deleted.is_(False))
-        .order_by(models.Aircraft.id.desc())
-    )
-
-
 @strawberry.type
 class AircraftQueries:
-
     @strawberry.field()
     @authenticated_user_only()
     async def aircrafts(root, info) -> List[Aircraft]:
-        async with get_session() as db:
-            aircrafts = (await db.scalars(
-                get_base_query(info.context.user_id, info.context.organization_ids)
-            )).all()
-
-            return [Aircraft(**a.as_dict()) for a in aircrafts]
+        query = get_aircraft_resolver(info.context.user_id, info.context.organization_ids)
+        return await get_list(models.Aircraft, query)
 
     @strawberry.field()
     @authenticated_user_only()
     async def aircraft(root, info, id: int) -> Aircraft:
-        query = (
-            get_base_query(info.context.user_id, info.context.organization_ids)
-            .filter(models.Aircraft.id == id)
-        )
-        async with get_session() as db:
-            aircraft = (await db.scalars(query)).one()
-            return Aircraft(**aircraft.as_dict())
+        query = get_aircraft_resolver(info.context.user_id, info.context.organization_ids, id)
+        return await get_one(models.Aircraft, query)
 
 
 @strawberry.type
@@ -92,7 +69,6 @@ class CreateAircraftMutation:
             input_data['photo_filename'] = await handle_file_upload(input.photo, AIRCRAFT_UPLOAD_DEST_PATH)
 
         async with get_session() as db:
-
             if input.organization:
                 input_data['organization_id'] = await handle_combobox_save(
                     db,
@@ -134,10 +110,7 @@ class EditAircraftMutation:
                     user_id=info.context.user_id,
                 )
 
-            aircraft = (await db.scalars(
-                get_base_query(info.context.user_id, set())  # TODO: bude fungovat prazdny set?
-                .filter(models.Aircraft.id == id)
-            )).one()
+            aircraft = (await db.scalars(get_aircraft_resolver(user_id=info.context.user_id, aircraft_id=id))).one()
 
             if input.photo:
                 if aircraft.photo_filename:
@@ -156,10 +129,7 @@ class DeleteAircraftMutation:
     @authenticated_user_only()
     async def delete_aircraft(self, info, id: int) -> Aircraft:
         async with get_session() as db:
-            aircraft = (await db.scalars(
-                get_base_query(info.context.user_id)
-                .filter(models.Aircraft.id == id)
-            )).one()
+            aircraft = (await db.scalars(get_aircraft_resolver(info.context.user_id, aircraft_id=id))).one()
 
             aircraft = await models.Aircraft.update(db, obj=aircraft, data=dict(deleted=True))
             return Aircraft(**aircraft.as_dict())

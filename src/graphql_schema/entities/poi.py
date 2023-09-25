@@ -7,10 +7,11 @@ from dependencies.db import get_session
 from graphql_schema.dataloaders.flight import flight_by_poi_dataloader
 from graphql_schema.dataloaders.photos import poi_photos_dataloader
 from graphql_schema.dataloaders.poi import poi_type_dataloader
-from graphql_schema.entities.helpers.flight import handle_combobox_save
+from graphql_schema.entities.helpers.combobox import handle_combobox_save
 from graphql_schema.entities.poi_type import PointOfInterestType
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from graphql_schema.types import ComboboxInput
+from .resolvers.base import get_base_resolver, get_list, get_one
 
 if TYPE_CHECKING:
     from .flight import Flight
@@ -51,28 +52,17 @@ def get_base_query(user_id: int, only_my: bool = False):
 
 @strawberry.type
 class PointOfInterestQueries:
-
     @strawberry.field()
     @authenticated_user_only()
     async def points_of_interest(root, info) -> List[PointOfInterest]:
-        query = (
-            get_base_query(info.context.user_id)
-            .order_by(models.PointOfInterest.id.desc())
-        )
-        async with get_session() as db:
-            pois = (await db.scalars(query)).all()
-            return [PointOfInterest(**poi.as_dict()) for poi in pois]
+        query = get_base_resolver(models.PointOfInterest, user_id=info.context.user_id)
+        return await get_list(models.PointOfInterest, query)
 
     @strawberry.field()
     @authenticated_user_only()
     async def point_of_interest(root, info, id: int) -> PointOfInterest:
-        query = (
-            get_base_query(info.context.user_id)
-            .filter(models.PointOfInterest.id == id)
-        )
-        async with get_session() as db:
-            poi = (await db.scalars(query)).one()
-            return PointOfInterest(**poi.as_dict())
+        query = get_base_resolver(models.PointOfInterest, user_id=info.context.user_id, object_id=id)
+        return await get_one(models.PointOfInterest, query)
 
 
 @strawberry.type
@@ -105,8 +95,11 @@ class EditPointOfInterestMutation:
     @strawberry.mutation
     @authenticated_user_only()
     async def edit_point_of_interest(root, info, id: int, input: EditPointOfInterestInput) -> PointOfInterest:
-        # TODO: kontrola organizace
         input_data = input.to_dict()
+
+        query = get_base_resolver(
+            models.PointOfInterest, user_id=info.context.user_id, object_id=id, include_public=False
+        )
 
         async with get_session() as db:
             if input.type is not None:
@@ -114,11 +107,7 @@ class EditPointOfInterestMutation:
                     db, models.PointOfInterestType, input.type, info.context.user_id
                 )
 
-            poi = (
-                await db.scalars(
-                    get_base_query(info.context.user_id, only_my=True)
-                    .filter(models.PointOfInterest.id == id)
-                )).one()
+            poi = (await db.scalars(query)).one()
             updated_poi = await models.PointOfInterest.update(db, obj=poi, data=input_data)
             return PointOfInterest(**updated_poi.as_dict())
 
@@ -129,11 +118,12 @@ class DeletePointOfInterestMutation:
     @strawberry.mutation
     @authenticated_user_only()
     async def delete_point_of_interest(self, info, id: int) -> PointOfInterest:
+        query = get_base_resolver(
+            models.PointOfInterest, user_id=info.context.user_id, object_id=id, include_public=False
+        )
+
         async with get_session() as db:
-            poi = (await db.scalars(
-                get_base_query(info.context.user_id, only_my=True)
-                .filter(models.PointOfInterest.id == id)
-            )).one()
+            poi = (await db.scalars(query)).one()
 
             updated_poi = await models.PointOfInterest.update(db, obj=poi, data=dict(deleted=True))
             return PointOfInterest(**updated_poi.as_dict())

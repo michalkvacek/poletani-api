@@ -1,15 +1,12 @@
 import asyncio
 from datetime import datetime
 from typing import List, Type, Literal, Optional, Tuple
-from aiohttp import ClientResponseError
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.file_uploads import Upload
 from database import models
-from dependencies.db import get_session
-from external.elevation import elevation_api
-from external.gpx_parser import GPXParser
 from external.weather import Weather
+from graphql_schema.entities.helpers.combobox import handle_combobox_save
 from graphql_schema.types import ComboboxInput
 from upload_utils import delete_file, handle_file_upload
 
@@ -141,27 +138,6 @@ async def handle_airport_changed(
     setattr(flight, f"{type_}_datetime", input_datetime)
 
 
-async def add_terrain_elevation(flight: dict, gpx_filename: str):
-    path = "/app/uploads/tracks"  # TODO vytahnout do configu
-
-    gpx_parser = GPXParser(f"{path}/{gpx_filename}")
-    coordinates = await gpx_parser.get_coordinates()
-
-    try:
-        elevation = await elevation_api.get_elevation_for_points(coordinates)
-        tree_with_elevation = gpx_parser.add_terrain_elevation(elevation)
-        output_name = f"terrain_{gpx_filename}"
-        gpx_parser.write(tree_with_elevation, f"{path}/{output_name}")
-
-        async with get_session() as db:
-            await models.Flight.update(
-                db, {"gpx_track_filename": output_name, "has_terrain_elevation": True},
-                id=flight['id'])
-
-    except ClientResponseError as e:
-        print(e)
-
-
 async def handle_upload_gpx(flight: models.Flight, gpx_track: Upload):
     path = "/app/uploads/tracks"
 
@@ -176,25 +152,3 @@ async def handle_copilots_edit(db: AsyncSession, copilots: List[ComboboxInput], 
     return await asyncio.gather(*cors)
 
 
-async def handle_combobox_save(
-        db: AsyncSession,
-        model: Type[models.BaseModel],
-        input: ComboboxInput,
-        user_id: int,
-        name_column: str = "name",
-        extra_data: Optional[dict] = None
-) -> int:
-    if input.id:
-        return input.id
-    else:
-
-        if not extra_data:
-            extra_data = {}
-
-        data = {name_column: input.name, **extra_data}
-        if hasattr(model, "created_by_id"):
-            data["created_by_id"] = user_id
-
-        obj = await model.create(db, data)
-        await db.flush()
-        return obj.id
