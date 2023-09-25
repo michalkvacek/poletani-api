@@ -20,6 +20,7 @@ class FlightsLoader:
             query = (
                 select(Flight, rel_column)
                 .filter(rel_column.in_(ids))
+                .order_by(Flight.takeoff_datetime.desc())
             )
 
             for table in self.extra_join:

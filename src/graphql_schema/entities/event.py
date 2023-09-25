@@ -24,7 +24,7 @@ def get_base_query(user_id: int):
         select(models.Event)
         .filter(models.Event.created_by_id == user_id)
         .filter(models.Event.deleted.is_(False))
-        .order_by(models.Event.name)
+        .order_by(models.Event.date_from.desc(), models.Event.id.desc())
     )
 
 
