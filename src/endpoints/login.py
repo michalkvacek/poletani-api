@@ -24,8 +24,9 @@ class LoginEndpoint(AuthEndpoint):
                 raise HTTPException(status_code=401, detail="Invalid user")
 
             user = logged_user.as_dict()
+            password_hashed = logged_user.password_hashed
 
-        if not bcrypt.verify(user_data.password, user['password_hashed']):
+        if not bcrypt.verify(user_data.password, password_hashed):
             raise HTTPException(status_code=401, detail="Bad username or password")
 
         subject = {"id": user['id'], "email": user['email']}

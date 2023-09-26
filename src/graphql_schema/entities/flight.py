@@ -23,6 +23,7 @@ from .helpers.flight import (
     handle_aircraft_save, handle_track_edit, handle_copilots_edit, handle_weather_info, get_airports,
     handle_upload_gpx, handle_airport_changed, handle_combobox_save
 )
+from .resolvers.base import get_list, get_one
 from ..dataloaders.multi_models import flight_copilots_dataloader, flight_track_dataloader, photos_dataloader
 from ..dataloaders.single_model import (
     poi_dataloader, event_dataloader, aircraft_dataloader, airport_dataloader, cover_photo_loader,
@@ -169,10 +170,7 @@ class FlightQueries:
             get_base_query(user_id=info.context.user_id, username=username, is_auth=bool(info.context.user_id))
             .order_by(models.Flight.id.desc())
         )
-
-        async with get_session() as db:
-            flights = (await db.scalars(query)).all()
-            return [Flight(**f.as_dict()) for f in flights]
+        return await get_list(models.Flight, query)
 
     @strawberry.field()
     @error_logging
@@ -184,10 +182,7 @@ class FlightQueries:
             get_base_query(user_id=info.context.user_id, username=username, is_auth=bool(info.context.user_id))
             .filter(models.Flight.id == id)
         )
-
-        async with get_session() as db:
-            flight = (await db.scalars(query)).one()
-            return Flight(**flight.as_dict())
+        return await get_one(models.Flight, query)
 
 
 @strawberry.type
@@ -259,6 +254,7 @@ class EditFlightMutation:
 
             data = input.to_dict()
 
+            # TODO: nahravani a zpracovani presunout mimo DB transakci!
             if input.gpx_track is not None:
                 data['gpx_track_filename'] = await handle_upload_gpx(flight, input.gpx_track)
                 info.context.background_tasks.add_task(
