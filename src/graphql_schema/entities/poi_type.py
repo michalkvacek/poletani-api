@@ -1,6 +1,5 @@
 from typing import List
 import strawberry
-from sqlalchemy import select, or_
 from database import models
 from decorators.endpoints import authenticated_user_only
 from graphql_schema.entities.resolvers.base import get_base_resolver, get_list, get_one

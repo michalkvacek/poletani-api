@@ -1,4 +1,4 @@
-from typing import List, Optional, Annotated, TYPE_CHECKING, Set
+from typing import List, Optional, Annotated, TYPE_CHECKING
 import strawberry
 from strawberry.file_uploads import Upload
 from database import models
@@ -9,8 +9,8 @@ from upload_utils import handle_file_upload, delete_file, get_public_url
 from graphql_schema.entities.helpers.combobox import handle_combobox_save
 from .resolvers.aircraft import get_aircraft_resolver
 from .resolvers.base import get_list, get_one
-from ..dataloaders.flight import flights_by_aircraft_dataloader
-from ..dataloaders.organizations import organizations_dataloader
+from ..dataloaders.multi_models import flights_by_aircraft_dataloader
+from ..dataloaders.single_model import organizations_dataloader
 from ..types import ComboboxInput
 
 if TYPE_CHECKING:
@@ -22,18 +22,14 @@ AIRCRAFT_UPLOAD_DEST_PATH = "/app/uploads/aircrafts/"
 
 @strawberry_sqlalchemy_type(models.Aircraft)
 class Aircraft:
-    async def load_flights(root):
-        return await flights_by_aircraft_dataloader.load(root.id)
-
-    async def load_organization(root):
-        return await organizations_dataloader.load(root.organization_id)
-
     photo_url: Optional[str] = strawberry.field(
         resolver=lambda root: get_public_url(f"aircrafts/{root.photo_filename}") if root.photo_filename else None
     )
-    flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(resolver=load_flights)
+    flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(
+        resolver=lambda root: flights_by_aircraft_dataloader.load(root.id)
+    )
     organization: Optional[Annotated["Organization", strawberry.lazy(".organization")]] = strawberry.field(
-        resolver=load_organization
+        resolver=lambda root: organizations_dataloader.load(root.organization_id)
     )
 
 

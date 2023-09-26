@@ -1,6 +1,6 @@
 import asyncio
 from datetime import datetime
-from typing import List, Type, Literal, Optional, Tuple
+from typing import List, Literal, Optional, Tuple
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.file_uploads import Upload
@@ -13,7 +13,9 @@ from upload_utils import delete_file, handle_file_upload
 weather_api = Weather()
 
 
-async def handle_weather_info(db: AsyncSession, date_time: datetime, airport: models.Airport) -> Optional[models.WeatherInfo]:
+async def handle_weather_info(
+        db: AsyncSession, date_time: datetime, airport: models.Airport
+) -> Optional[models.WeatherInfo]:
     if not airport.gps_latitude or not airport.gps_longitude:
         return None
 
@@ -89,7 +91,9 @@ async def handle_aircraft_save(db: AsyncSession, user_id: int, aircraft: Combobo
         })
 
 
-async def get_airports(db, takeoff_airport: ComboboxInput, landing_airport: ComboboxInput, user_id: int) -> Tuple[models.Airport, models.Airport]:
+async def get_airports(
+        db, takeoff_airport: ComboboxInput, landing_airport: ComboboxInput, user_id: int
+) -> Tuple[models.Airport, models.Airport]:
     takeoff_airport_id = await handle_combobox_save(
         db, models.Airport, takeoff_airport, user_id,
         name_column="icao_code", extra_data={"name": takeoff_airport.name}
@@ -147,8 +151,6 @@ async def handle_upload_gpx(flight: models.Flight, gpx_track: Upload):
     return await handle_file_upload(gpx_track, path)
 
 
-async def handle_copilots_edit(db: AsyncSession, copilots: List[ComboboxInput], user_id: int) -> List[int]:
+async def handle_copilots_edit(db: AsyncSession, copilots: List[ComboboxInput], user_id: int) -> tuple:
     cors = [handle_combobox_save(db, models.Copilot, copilot, user_id) for copilot in copilots]
     return await asyncio.gather(*cors)
-
-

@@ -9,7 +9,6 @@ from starlette.staticfiles import StaticFiles
 from strawberry.fastapi import GraphQLRouter
 from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG, ALLOW_CORS_ORIGINS
 from database import models, async_session
-from dependencies.db import get_session
 from endpoints.login import LoginEndpoint, LoginInput, RefreshEndpoint, LogoutEndpoint
 from endpoints.registration import RegistrationInput, RegistrationEndpoint
 from graphql_schema.schema import schema, GraphQLContext
@@ -68,8 +67,6 @@ class App:
                         select(models.user_is_in_organization.c.organization_id)
                         .filter(models.user_is_in_organization.c.user_id == user_id)
                     )).all())
-
-                    print("ORGANIZATION IDS", organization_ids)
 
             return GraphQLContext(
                 user_id=user_id,

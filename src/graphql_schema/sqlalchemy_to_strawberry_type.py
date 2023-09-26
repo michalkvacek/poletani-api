@@ -41,6 +41,7 @@ def strawberry_sqlalchemy_type(model, exclude_fields: Optional[typing.Union[List
 
     return wrapper
 
+
 def strawberry_sqlalchemy_input(
         model,
         exclude_fields: Optional[typing.Union[List, typing.Tuple]] = None,

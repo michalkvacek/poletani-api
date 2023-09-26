@@ -3,7 +3,9 @@ from graphql_schema.entities.aircraft import CreateAircraftMutation, EditAircraf
 from graphql_schema.entities.copilot import CreateCopilotMutation, EditCopilotMutation
 from graphql_schema.entities.event import CreateEventMutation, EditEventMutation
 from graphql_schema.entities.flight import CreateFlightMutation, EditFlightMutation, DeleteFlightMutation
-from graphql_schema.entities.organization import CreateOrganizationMutation, EditOrganizationMutation, OrganizationUserMutation
+from graphql_schema.entities.organization import (
+    CreateOrganizationMutation, EditOrganizationMutation, OrganizationUserMutation
+)
 from graphql_schema.entities.photo import UploadPhotoMutation, DeletePhotoMutation, EditPhotoMutation
 from graphql_schema.entities.poi import CreatePointOfInterestMutation, EditPointOfInterestMutation
 from graphql_schema.entities.user import EditUserMutation

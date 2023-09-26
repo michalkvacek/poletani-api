@@ -5,7 +5,7 @@ from external.elevation import elevation_api
 from external.gpx_parser import GPXParser
 
 
-async def add_terrain_elevation(flight: dict, gpx_filename: str):
+async def add_terrain_elevation_to_flight(flight: dict, gpx_filename: str):
     path = "/app/uploads/tracks"  # TODO vytahnout do configu
 
     gpx_parser = GPXParser(f"{path}/{gpx_filename}")
@@ -24,3 +24,19 @@ async def add_terrain_elevation(flight: dict, gpx_filename: str):
 
     except ClientResponseError as e:
         print(e)
+
+
+async def add_terrain_elevation_to_photo(photo):
+    async with get_session() as db:
+        try:
+            elevation = await elevation_api.get_elevation_for_points([
+                {"lat": photo.gps_latitude, "lng": photo.gps_longitude}
+            ])
+            if not elevation:
+                print("Cannot get elevation")
+                return
+
+            terrain_elevation = elevation[0]['elevation']
+            await models.Photo.update(db_session=db, obj=photo, data={"terrain_elevation": terrain_elevation})
+        except Exception as e:
+            print(f"Cannot get elevation: {e}")

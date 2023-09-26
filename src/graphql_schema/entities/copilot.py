@@ -1,12 +1,11 @@
 from typing import List, Annotated, TYPE_CHECKING
 import strawberry
-from sqlalchemy import select
 from database import models
 from decorators.endpoints import authenticated_user_only
 from dependencies.db import get_session
-from graphql_schema.dataloaders.flight import flights_by_copilot_dataloader
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from .resolvers.base import get_base_resolver, get_list, get_one
+from ..dataloaders.multi_models import flights_by_copilot_dataloader
 
 if TYPE_CHECKING:
     from .flight import Flight
@@ -14,10 +13,9 @@ if TYPE_CHECKING:
 
 @strawberry_sqlalchemy_type(models.Copilot)
 class Copilot:
-    async def load_flights(root):
-        return await flights_by_copilot_dataloader.load(root.id)
-
-    flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(resolver=load_flights)
+    flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(
+        resolver=lambda root: flights_by_copilot_dataloader.load(root.id)
+    )
 
 
 @strawberry.type

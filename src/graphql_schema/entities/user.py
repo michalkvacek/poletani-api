@@ -9,12 +9,13 @@ from database import models
 from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
 from dependencies.db import get_session
-from graphql_schema.dataloaders.organizations import user_organizations_dataloader
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
 from upload_utils import handle_file_upload, delete_file, get_public_url, resize_image
+from ..dataloaders.multi_models import user_organizations_dataloader
 
 if TYPE_CHECKING:
     from .organization import Organization
+
 
 @strawberry_sqlalchemy_type(models.User, exclude_fields=['password_hashed'])
 class User:
@@ -30,12 +31,11 @@ class User:
 
         return get_public_url(f"profile/{root.id}/{root.title_image_filename}")
 
-    async def load_organizations(root):
-        return await user_organizations_dataloader.load(root.id)
-
     avatar_image_url: Optional[str] = strawberry.field(resolver=load_avatar_image_url)
     title_image_url: str = strawberry.field(resolver=load_title_image_url)
-    organizations: List[Annotated['Organization', strawberry.lazy(".organization")]] = strawberry.field(resolver=load_organizations)
+    organizations: List[Annotated['Organization', strawberry.lazy(".organization")]] = strawberry.field(
+        resolver=lambda root: user_organizations_dataloader.load(root.id)
+    )
 
 
 @strawberry.type
@@ -85,7 +85,11 @@ class EditUserMutation:
             )).one()
 
             user_image_path = f"/app/uploads/profile/{user.id}"
-            data = {key: getattr(input, key) for key in ("name", "description", "public_username") if getattr(input, key) is not None}
+            data = {
+                key: getattr(input, key)
+                for key in ("name", "description", "public_username")
+                if getattr(input, key) is not None
+            }
             if input.avatar_image:
                 if user.avatar_image_filename:
                     delete_file(f"{user_image_path}/{user.avatar_image_filename}", silent=True)

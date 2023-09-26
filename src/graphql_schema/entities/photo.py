@@ -3,18 +3,19 @@ from typing import List, Optional, Annotated, TYPE_CHECKING
 import strawberry
 from sqlalchemy import select, update
 from strawberry.file_uploads import Upload
-from background_jobs.photo import add_terrain_elevation
+from background_jobs.elevation import add_terrain_elevation_to_photo
 from database import models
 from decorators.endpoints import authenticated_user_only
 from dependencies.db import get_session
-from graphql_schema.dataloaders.poi import poi_dataloader
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
 from graphql_schema.types import ComboboxInput
 from upload_utils import (
-    get_public_url, handle_file_upload, delete_file, parse_exif_info, generate_thumbnail, file_exists, resize_image, rotate_image
+    get_public_url, handle_file_upload, delete_file, parse_exif_info, generate_thumbnail, file_exists, resize_image,
+    rotate_image
 )
 from graphql_schema.entities.helpers.combobox import handle_combobox_save
 from .resolvers.base import get_base_resolver, get_list
+from ..dataloaders.single_model import poi_dataloader
 
 if TYPE_CHECKING:
     from .poi import PointOfInterest
@@ -22,9 +23,6 @@ if TYPE_CHECKING:
 
 @strawberry_sqlalchemy_type(models.Photo)
 class Photo:
-    def resolve_url(root):
-        return get_public_url(f"photos/{root.flight_id}/{root.filename}")
-
     def resolve_thumb_url(root):
         thumbnail = get_photo_basepath(root.flight_id) + "/thumbs/" + root.filename
         if not file_exists(thumbnail):
@@ -32,15 +30,11 @@ class Photo:
 
         return get_public_url(f"photos/{root.flight_id}/thumbs/{root.filename}")
 
-    async def load_poi(root):
-        if not root.point_of_interest_id:
-            return None
-
-        return await poi_dataloader.load(root.point_of_interest_id)
-
-    url: str = strawberry.field(resolver=resolve_url)
+    url: str = strawberry.field(resolver=lambda root: get_public_url(f"photos/{root.flight_id}/{root.filename}"))
     thumbnail_url: str = strawberry.field(resolver=resolve_thumb_url)
-    point_of_interest: Optional[Annotated["PointOfInterest", strawberry.lazy('.poi')]] = strawberry.field(resolver=load_poi)  # noqa
+    point_of_interest: Optional[Annotated["PointOfInterest", strawberry.lazy('.poi')]] = strawberry.field(
+        resolver=lambda root: poi_dataloader.load(root.point_of_interest_id)
+    )
 
 
 def get_base_query(user_id: int):
@@ -100,7 +94,7 @@ class UploadPhotoMutation:
         info.context.background_tasks.add_task(generate_thumbnail, path=path, filename=filename)
 
         if exif_info.get("gps_latitude") and exif_info.get("gps_longitude"):
-            info.context.background_tasks.add_task(add_terrain_elevation, photo=photo)
+            info.context.background_tasks.add_task(add_terrain_elevation_to_photo, photo=photo)
 
         return photo
 
@@ -165,15 +159,13 @@ class EditPhotoMutation:
                     angle=angle,
                 ),
                 rotate_image(
-                    path=get_photo_basepath(photo.flight_id)+"/thumbs",
+                    path=get_photo_basepath(photo.flight_id) + "/thumbs",
                     filename=photo.filename,
                     angle=angle,
                 ),
             )
 
             return Photo(**photo.as_dict())
-
-
 
 
 @strawberry.type

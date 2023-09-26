@@ -1,6 +1,6 @@
 from typing import List, Annotated, TYPE_CHECKING
 import strawberry
-from sqlalchemy import select, delete
+from sqlalchemy import delete
 from sqlalchemy.dialects.mysql import insert
 from sqlalchemy.exc import IntegrityError
 from database import models
@@ -8,8 +8,7 @@ from decorators.endpoints import authenticated_user_only
 from dependencies.db import get_session
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from .resolvers.base import get_base_resolver, get_list, get_one
-from ..dataloaders.aircraft import aircrafts_from_organization_dataloader
-from ..dataloaders.users import users_in_organization_dataloader
+from ..dataloaders.multi_models import users_in_organization_dataloader, aircrafts_from_organization_dataloader
 
 if TYPE_CHECKING:
     from .user import User
@@ -18,15 +17,12 @@ if TYPE_CHECKING:
 
 @strawberry_sqlalchemy_type(models.Organization)
 class Organization:
-
-    async def load_users(self):
-        return await users_in_organization_dataloader.load(self.id)
-
-    async def load_aircrafts(self):
-        return await aircrafts_from_organization_dataloader.load(self.id)
-
-    users: List[Annotated["User", strawberry.lazy(".user")]] = strawberry.field(resolver=load_users)
-    aircrafts: List[Annotated["Aircraft", strawberry.lazy(".aircraft")]] = strawberry.field(resolver=load_aircrafts)
+    users: List[Annotated["User", strawberry.lazy(".user")]] = strawberry.field(
+        resolver=lambda root: users_in_organization_dataloader.load(root.id)
+    )
+    aircrafts: List[Annotated["Aircraft", strawberry.lazy(".aircraft")]] = strawberry.field(
+        resolver=lambda root: aircrafts_from_organization_dataloader.load(root.id)
+    )
 
 
 @strawberry.type

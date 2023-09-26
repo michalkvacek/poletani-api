@@ -4,14 +4,13 @@ from sqlalchemy import select, or_
 from database import models
 from decorators.endpoints import authenticated_user_only
 from dependencies.db import get_session
-from graphql_schema.dataloaders.flight import flight_by_poi_dataloader
-from graphql_schema.dataloaders.photos import poi_photos_dataloader
-from graphql_schema.dataloaders.poi import poi_type_dataloader
 from graphql_schema.entities.helpers.combobox import handle_combobox_save
 from graphql_schema.entities.poi_type import PointOfInterestType
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type, strawberry_sqlalchemy_input
 from graphql_schema.types import ComboboxInput
 from .resolvers.base import get_base_resolver, get_list, get_one
+from ..dataloaders.multi_models import flight_by_poi_dataloader, poi_photos_dataloader
+from ..dataloaders.single_model import poi_type_dataloader
 
 if TYPE_CHECKING:
     from .flight import Flight
@@ -20,34 +19,15 @@ if TYPE_CHECKING:
 
 @strawberry_sqlalchemy_type(models.PointOfInterest)
 class PointOfInterest:
-    async def load_photos(root):
-        return await poi_photos_dataloader.load(root.id)
-
-    async def load_type(root):
-        return await poi_type_dataloader.load(root.type_id)
-
-    async def load_flights(root):
-        return await flight_by_poi_dataloader.load(root.id)
-
-    type: Optional[PointOfInterestType] = strawberry.field(resolver=load_type)
-    photos: List[Annotated["Photo", strawberry.lazy('.photo')]] = strawberry.field(resolver=load_photos)
-    flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(resolver=load_flights)
-
-
-def get_base_query(user_id: int, only_my: bool = False):
-    query = (
-        select(models.PointOfInterest)
-        .filter(models.PointOfInterest.deleted.is_(False))
+    type: Optional[PointOfInterestType] = strawberry.field(
+        resolver=lambda root: poi_type_dataloader.load(root.type_id)
     )
-    if only_my:
-        query = query.filter(models.PointOfInterest.created_by_id == user_id)
-    else:
-        query = query.filter(or_(
-            models.PointOfInterest.created_by_id == user_id,
-            models.PointOfInterest.is_public.is_(True)
-        ))
-
-    return query
+    photos: List[Annotated["Photo", strawberry.lazy('.photo')]] = strawberry.field(
+        resolver=lambda root: poi_photos_dataloader.load(root.id)
+    )
+    flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(
+        resolver=lambda root: flight_by_poi_dataloader.load(root.id)
+    )
 
 
 @strawberry.type
