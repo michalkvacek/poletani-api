@@ -187,11 +187,14 @@ class FlightTrack(BaseModel):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     flight_id: Mapped[int] = mapped_column(Integer, ForeignKey("flight.id"), nullable=False)
-    point_of_interest_id: Mapped[int] = mapped_column(Integer, ForeignKey("point_of_interest.id"), nullable=False)
+    point_of_interest_id: Mapped[int] = mapped_column(Integer, ForeignKey("point_of_interest.id"), nullable=True)
+    airport_id: Mapped[int] = mapped_column(Integer, ForeignKey("airport.id"), nullable=True)
+    landing_duration: Mapped[int] = mapped_column(Integer, nullable=True)
     order: Mapped[int] = mapped_column(Integer)
 
     flight: Mapped['Flight'] = relationship()
     point_of_interest: Mapped['PointOfInterest'] = relationship()
+    airport: Mapped['Airport'] = relationship()
 
 
 class WeatherInfo(BaseModel):

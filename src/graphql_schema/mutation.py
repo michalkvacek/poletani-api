@@ -2,7 +2,7 @@ from strawberry.tools import merge_types
 from graphql_schema.entities.aircraft import CreateAircraftMutation, EditAircraftMutation, DeleteAircraftMutation
 from graphql_schema.entities.copilot import CreateCopilotMutation, EditCopilotMutation
 from graphql_schema.entities.event import CreateEventMutation, EditEventMutation
-from graphql_schema.entities.flight import CreateFlightMutation, EditFlightMutation, DeleteFlightMutation
+from graphql_schema.entities.flight import FlightMutation
 from graphql_schema.entities.organization import (
     CreateOrganizationMutation, EditOrganizationMutation, OrganizationUserMutation
 )
@@ -14,9 +14,7 @@ Mutation = merge_types("Mutation", (
     CreateAircraftMutation,
     EditAircraftMutation,
     DeleteAircraftMutation,
-    EditFlightMutation,
-    DeleteFlightMutation,
-    CreateFlightMutation,
+    FlightMutation,
     UploadPhotoMutation,
     EditPhotoMutation,
     DeletePhotoMutation,

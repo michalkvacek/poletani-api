@@ -3,12 +3,7 @@ import strawberry
 from database import models
 from decorators.endpoints import authenticated_user_only
 from graphql_schema.entities.resolvers.base import get_base_resolver, get_list, get_one
-from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
-
-
-@strawberry_sqlalchemy_type(models.PointOfInterestType)
-class PointOfInterestType:
-    pass
+from graphql_schema.entities.types.types import PointOfInterestType
 
 
 @strawberry.type

@@ -1,7 +1,7 @@
 from typing import Type, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from database import models
-from graphql_schema.types import ComboboxInput
+from graphql_schema.entities.types.mutation_input import ComboboxInput
 
 
 async def handle_combobox_save(

@@ -23,7 +23,7 @@ class GPXParser:
 
     @cached()
     async def get_times(self):
-        nodes = self.run_xpath("//gpx:time")
+        nodes = self.run_xpath("//gpx:trkpt/gpx:time")
         return [datetime.fromisoformat(node.text).astimezone() for node in nodes]
 
     @cached()

@@ -5,7 +5,7 @@ from external.elevation import elevation_api
 from external.gpx_parser import GPXParser
 
 
-async def add_terrain_elevation_to_flight(flight: dict, gpx_filename: str):
+async def add_terrain_elevation_to_flight(flight_id: int, gpx_filename: str):
     path = "/app/uploads/tracks"  # TODO vytahnout do configu
 
     gpx_parser = GPXParser(f"{path}/{gpx_filename}")
@@ -20,7 +20,7 @@ async def add_terrain_elevation_to_flight(flight: dict, gpx_filename: str):
         async with get_session() as db:
             await models.Flight.update(
                 db, {"gpx_track_filename": output_name, "has_terrain_elevation": True},
-                id=flight['id'])
+                id=flight_id)
 
     except ClientResponseError as e:
         print(e)

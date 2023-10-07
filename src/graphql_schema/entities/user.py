@@ -1,41 +1,18 @@
-from typing import Optional, List, Annotated, TYPE_CHECKING
+from typing import Optional, TYPE_CHECKING
 import strawberry
 from graphql import GraphQLError
 from passlib.hash import bcrypt
 from sqlalchemy import select
 from strawberry.file_uploads import Upload
-from config import API_URL
 from database import models
 from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
 from dependencies.db import get_session
-from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
-from upload_utils import handle_file_upload, delete_file, get_public_url, resize_image
-from ..dataloaders.multi_models import user_organizations_dataloader
+from upload_utils import handle_file_upload, delete_file, resize_image
+from graphql_schema.entities.types.types import User
 
 if TYPE_CHECKING:
-    from .organization import Organization
-
-
-@strawberry_sqlalchemy_type(models.User, exclude_fields=['password_hashed'])
-class User:
-    async def load_avatar_image_url(root):
-        if not root.avatar_image_filename:
-            return None
-
-        return get_public_url(f"profile/{root.id}/{root.avatar_image_filename}")
-
-    async def load_title_image_url(root):
-        if not root.title_image_filename:
-            return f"{API_URL}/static/default-title-image.jpg"
-
-        return get_public_url(f"profile/{root.id}/{root.title_image_filename}")
-
-    avatar_image_url: Optional[str] = strawberry.field(resolver=load_avatar_image_url)
-    title_image_url: str = strawberry.field(resolver=load_title_image_url)
-    organizations: List[Annotated['Organization', strawberry.lazy(".organization")]] = strawberry.field(
-        resolver=lambda root: user_organizations_dataloader.load(root.id)
-    )
+    pass
 
 
 @strawberry.type

@@ -57,3 +57,6 @@ class Weather:
         result_data['datetime'] = datetime.datetime.strptime(data['hourly']['time'][idx], "%Y-%m-%dT%H:%M")
 
         return result_data
+
+
+weather_api = Weather()
