@@ -1,12 +1,10 @@
 import asyncio
 from datetime import datetime
 from typing import List, Optional, Type
-
 from aiocache import cached
 from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from strawberry.file_uploads import Upload
-
 from background_jobs.elevation import add_terrain_elevation_to_flight
 from database import models
 from database.models import flight_has_copilot
@@ -93,7 +91,9 @@ class FlightMutationResolver(BaseMutationResolver):
                 data['landing_airport_id'] = landing_airport.id
                 data['landing_datetime'] = landing_datetime
 
-                weather_info = await handle_weather_info(db, landing_datetime, landing_airport, flight_data['landing_weather_info_id'])
+                weather_info = await handle_weather_info(
+                    db, landing_datetime, landing_airport, flight_data['landing_weather_info_id']
+                )
                 if weather_info:
                     data['landing_weather_info_id'] = weather_info.id
 
@@ -104,7 +104,9 @@ class FlightMutationResolver(BaseMutationResolver):
                 data['takeoff_airport_id'] = takeoff_airport.id
                 data['takeoff_datetime'] = takeoff_datetime
 
-                weather_info = await handle_weather_info(db, takeoff_datetime, takeoff_airport, flight_data['takeoff_weather_info_id'])
+                weather_info = await handle_weather_info(
+                    db, takeoff_datetime, takeoff_airport, flight_data['takeoff_weather_info_id']
+                )
                 if weather_info:
                     data['takeoff_weather_info_id'] = weather_info.id
 

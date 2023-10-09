@@ -18,8 +18,6 @@ from .resolvers.base import get_base_resolver, get_list
 from graphql_schema.entities.types.mutation_input import ComboboxInput
 
 
-
-
 @strawberry.type
 class PhotoQueries:
     @strawberry.field()

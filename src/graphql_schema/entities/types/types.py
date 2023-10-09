@@ -1,15 +1,22 @@
 from __future__ import annotations
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional, Annotated, List
 import strawberry
-from sqlalchemy import func, select
 from config import API_URL
 from database import models
 from decorators.endpoints import authenticated_user_only
-from dependencies.db import get_session
 from external.gpx_parser import GPXParser
-from graphql_schema.dataloaders.multi_models import poi_photos_dataloader, flight_by_poi_dataloader, flight_copilots_dataloader, flight_track_dataloader, photos_dataloader, flights_by_aircraft_dataloader, users_in_organization_dataloader, aircrafts_from_organization_dataloader, user_organizations_dataloader, flights_by_event_dataloader, flights_by_copilot_dataloader
-from graphql_schema.dataloaders.single_model import poi_dataloader, poi_type_dataloader, event_dataloader, aircraft_dataloader, airport_dataloader, cover_photo_loader, airport_weather_info_loader, organizations_dataloader
+from graphql_schema.dataloaders.flight_duration import flight_duration_dataloader
+from graphql_schema.dataloaders.multi_models import (
+    poi_photos_dataloader, flight_by_poi_dataloader, flight_copilots_dataloader, flight_track_dataloader,
+    photos_dataloader, flights_by_aircraft_dataloader, users_in_organization_dataloader,
+    aircrafts_from_organization_dataloader, user_organizations_dataloader, flights_by_event_dataloader,
+    flights_by_copilot_dataloader
+)
+from graphql_schema.dataloaders.single_model import (
+    poi_dataloader, poi_type_dataloader, event_dataloader, aircraft_dataloader, airport_dataloader, cover_photo_loader,
+    airport_weather_info_loader, organizations_dataloader
+)
 from graphql_schema.entities.airport import Airport
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
 from paths import get_photo_basepath
@@ -87,21 +94,6 @@ class GPXTrack:
 
 @strawberry_sqlalchemy_type(models.Flight)
 class Flight:
-    async def duration_min_calculated(root):
-        # TODO: predelat na dataloader, dobu nacitat v DB
-        diff: timedelta = root.landing_datetime - root.takeoff_datetime
-        total_time_minutes = diff.seconds / 60
-
-        async with get_session() as db:
-            landing_durations = (await db.scalars(
-                select(func.sum(models.FlightTrack.landing_duration))
-                .filter(models.FlightTrack.airport_id.isnot(None))
-                .filter(models.FlightTrack.flight_id == root.id)
-            )).one() or 0
-
-            print(landing_durations)
-        return total_time_minutes - float(landing_durations)
-
     async def load_gpx_track(root):
         if not root.gpx_track_filename:
             return None
@@ -132,7 +124,6 @@ class Flight:
     async def load_event(root):
         return await event_dataloader.load(root.event_id)
 
-    duration_min_calculated: int = strawberry.field(resolver=duration_min_calculated)
     copilots: Optional[List[Copilot]] = strawberry.field(resolver=load_copilots)
     event: Optional[Event] = strawberry.field(resolver=load_event)
     aircraft: Aircraft = strawberry.field(resolver=lambda root: aircraft_dataloader.load(root.aircraft_id))
@@ -147,10 +138,10 @@ class Flight:
         resolver=lambda root: airport_weather_info_loader.load(root.landing_weather_info_id)
     )
     photos: List[Photo] = strawberry.field(resolver=lambda root: photos_dataloader.load(root.id))
-    gpx_track_url: Optional[str] = strawberry.field(
-        resolver=lambda root: get_public_url(f"/tracks/{root.gpx_track_filename}") if root.gpx_track_filename else None
-    )  # TODO: odstranit
     gpx_track: Optional[GPXTrack] = strawberry.field(resolver=load_gpx_track)
+    duration_min_calculated: int = strawberry.field(
+        resolver=lambda root: flight_duration_dataloader.load(root.id)
+    )
 
 
 @strawberry_sqlalchemy_type(models.Copilot)
