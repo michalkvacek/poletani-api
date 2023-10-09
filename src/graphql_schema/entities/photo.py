@@ -49,7 +49,7 @@ class UploadPhotoMutation:
                 "name": input.name,
                 "filename": filename,
                 "description": input.description,
-                "exposed_at": exif_info.get("datetime"),
+                "exposed_at": exif_info.get("datetime_original"),
                 "gps_latitude": exif_info.get("gps_latitude"),
                 "gps_longitude": exif_info.get("gps_longitude"),
                 "gps_altitude": exif_info.get("gps_altitude"),

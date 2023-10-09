@@ -5,7 +5,6 @@ from typing import Optional, Tuple
 import exif
 from PIL import Image, UnidentifiedImageError
 from strawberry.file_uploads import Upload
-
 from config import API_URL
 
 
@@ -50,7 +49,6 @@ async def parse_exif_info(path: str, filename: str) -> dict:
 
         for datetime_field in ("datetime", "datetime_original", "datetime_digitized"):
             if exif_info.get(datetime_field):
-                print(exif_info[datetime_field])
                 exif_info[datetime_field] = datetime.strptime(exif_info[datetime_field], "%Y:%m:%d %H:%M:%S")
 
         if exif_info.get("gps_latitude"):
