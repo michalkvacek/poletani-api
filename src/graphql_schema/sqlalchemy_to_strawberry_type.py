@@ -1,10 +1,10 @@
 import typing
-from datetime import datetime
 from typing import List, Optional
 import strawberry
 import sqlalchemy
 from sqlalchemy import Column
 from database.models import BaseModel
+from graphql_schema.entities.types.base import BaseGraphqlInputType
 
 
 def get_columns_from_model(model: BaseModel, exclude_fields: List[str]) -> List[typing.Tuple[str, Column]]:
@@ -49,20 +49,7 @@ def strawberry_sqlalchemy_input(
     if exclude_fields is None:
         exclude_fields = []
 
-    ignored_fields = exclude_fields + ["created_at", "created_by_id", "updated_by_id", "updated_at", "deleted"]
-
-    def to_dict(self):
-        dict_data = {}
-        for key, _ in get_columns_from_model(model, ignored_fields):
-            value = getattr(self, key)
-            if value is None:
-                continue
-
-            if isinstance(value, datetime):
-                value = value.astimezone()
-
-            dict_data[key] = value
-        return dict_data
+    ignored_fields = exclude_fields + BaseGraphqlInputType.base_ignored_fields
 
     def wrapper(cls):
         annotations = get_annotations_for_scalars(
@@ -72,7 +59,6 @@ def strawberry_sqlalchemy_input(
         )
 
         cls.__annotations__.update(annotations)
-        cls.to_dict = to_dict
 
         for col, col_type in annotations.items():
             try:

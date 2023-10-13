@@ -1,4 +1,4 @@
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 import strawberry
 from graphql import GraphQLError
 from passlib.hash import bcrypt
@@ -7,12 +7,11 @@ from strawberry.file_uploads import Upload
 from database import models
 from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
-from dependencies.db import get_session
-from upload_utils import handle_file_upload, delete_file, resize_image
+from database.transaction import get_session
 from graphql_schema.entities.types.types import User
-
-if TYPE_CHECKING:
-    pass
+from utils.file import delete_file
+from utils.image import resize_image
+from utils.upload import handle_file_upload
 
 
 @strawberry.type

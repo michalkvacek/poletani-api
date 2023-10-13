@@ -2,6 +2,8 @@ import asyncio
 import sys
 from sqlalchemy import select
 
+from paths import FLIGHT_GPX_TRACK_PATH
+
 sys.path.insert(0, "/app/src")
 
 from database import async_session, models  # noqa
@@ -45,7 +47,7 @@ async def add_elevation_to_tracks():
             return
 
         for flight in flights:
-            gpx_file = f"/app/uploads/tracks/{flight.gpx_track_filename}"
+            gpx_file = f"{FLIGHT_GPX_TRACK_PATH}/{flight.gpx_track_filename}"
             gpx = GPXParser(gpx_file)
 
             coordinates = await gpx.get_coordinates()
@@ -53,7 +55,7 @@ async def add_elevation_to_tracks():
             gpx_with_elevation = gpx.add_terrain_elevation(elevation)
 
             output_name = f"terrain_{flight.gpx_track_filename[30:]}"
-            gpx.write(gpx_with_elevation, output=f"/app/uploads/tracks/{output_name}")
+            gpx.write(gpx_with_elevation, output=f"{FLIGHT_GPX_TRACK_PATH}/{output_name}")
             await models.Flight.update(
                 db_session=session, obj=flight, data={
                     "has_terrain_elevation": True,

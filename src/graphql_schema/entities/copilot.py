@@ -1,14 +1,11 @@
-from typing import List, TYPE_CHECKING
+from typing import List
 import strawberry
 from database import models
 from decorators.endpoints import authenticated_user_only
-from dependencies.db import get_session
-from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_input
-from .resolvers.base import get_base_resolver, get_list, get_one
+from database.transaction import get_session
+from graphql_schema.entities.resolvers.base import BaseQueryResolver, BaseMutationResolver
+from graphql_schema.entities.types.mutation_input import CreateCopilotInput, EditCopilotInput
 from graphql_schema.entities.types.types import Copilot
-
-if TYPE_CHECKING:
-    pass
 
 
 @strawberry.type
@@ -16,50 +13,33 @@ class CopilotQueries:
     @strawberry.field()
     @authenticated_user_only()
     async def copilots(root, info) -> List[Copilot]:
-        query = get_base_resolver(models.Copilot, user_id=info.context.user_id, order_by=[models.Copilot.name])
-        return await get_list(models.Copilot, query)
+        return await BaseQueryResolver(Copilot, models.Copilot).get_list(info.context.user_id)
 
     @strawberry.field()
     @authenticated_user_only()
     async def copilot(root, info, id: int) -> Copilot:
-        query = get_base_resolver(models.Copilot, object_id=id, user_id=info.context.user_id)
-        return await get_one(models.Copilot, query)
+        return await BaseQueryResolver(Copilot, models.Copilot).get_one(id, user_id=info.context.user_id)
 
 
 @strawberry.type
 class CreateCopilotMutation:
-    @strawberry_sqlalchemy_input(model=models.Copilot, exclude_fields=["id"])
-    class CreateCopilotInput:
-        pass
-
     @strawberry.mutation
     @authenticated_user_only()
     async def create_copilot(root, info, input: CreateCopilotInput) -> Copilot:
-        input_data = input.to_dict()
-        async with get_session() as db:
-            copilot = await models.Copilot.create(
-                db,
-                data=dict(
-                    **input_data,
-                    created_by_id=info.context.user_id,
-                )
-            )
-
-            return Copilot(**copilot.as_dict())
+        return await BaseMutationResolver(Copilot, models.Copilot).create(
+            data=input.to_dict(),
+            user_id=info.context.user_id
+        )
 
 
 @strawberry.type
 class EditCopilotMutation:
-    @strawberry_sqlalchemy_input(model=models.Copilot, exclude_fields=["id"])
-    class EditCopilotInput:
-        pass
-
     @strawberry.mutation
     @authenticated_user_only()
     async def edit_copilot(root, info, id: int, input: EditCopilotInput) -> Copilot:
         async with get_session() as db:
             copilot = (await db.scalars(
-                query=get_base_resolver(models.Copilot, object_id=id, user_id=info.context.user_id)
+                BaseQueryResolver(Copilot, models.Copilot).get_query(object_id=id, user_id=info.context.user_id)
             )).one()
 
             updated_copilot = await models.Copilot.update(db, obj=copilot, data=input.to_dict())

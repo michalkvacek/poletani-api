@@ -1,31 +1,24 @@
 from strawberry.tools import merge_types
-from graphql_schema.entities.aircraft import CreateAircraftMutation, EditAircraftMutation, DeleteAircraftMutation
+from graphql_schema.entities.aircraft import AircraftMutation
 from graphql_schema.entities.copilot import CreateCopilotMutation, EditCopilotMutation
-from graphql_schema.entities.event import CreateEventMutation, EditEventMutation
+from graphql_schema.entities.event import EventMutation
 from graphql_schema.entities.flight import FlightMutation
-from graphql_schema.entities.organization import (
-    CreateOrganizationMutation, EditOrganizationMutation, OrganizationUserMutation
-)
+from graphql_schema.entities.organization import OrganizationUserMutation, OrganizationMutation
 from graphql_schema.entities.photo import UploadPhotoMutation, DeletePhotoMutation, EditPhotoMutation
-from graphql_schema.entities.poi import CreatePointOfInterestMutation, EditPointOfInterestMutation
+from graphql_schema.entities.poi import PointOfInterestMutation
 from graphql_schema.entities.user import EditUserMutation
 
 Mutation = merge_types("Mutation", (
-    CreateAircraftMutation,
-    EditAircraftMutation,
-    DeleteAircraftMutation,
+    AircraftMutation,
     FlightMutation,
     UploadPhotoMutation,
     EditPhotoMutation,
     DeletePhotoMutation,
-    CreatePointOfInterestMutation,
-    EditPointOfInterestMutation,
+    PointOfInterestMutation,
     CreateCopilotMutation,
     EditCopilotMutation,
     EditUserMutation,
-    CreateEventMutation,
-    EditEventMutation,
-    CreateOrganizationMutation,
-    EditOrganizationMutation,
+    EventMutation,
+    OrganizationMutation,
     OrganizationUserMutation,
 ))

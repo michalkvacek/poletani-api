@@ -2,7 +2,7 @@ from typing import List
 import strawberry
 from database import models
 from decorators.endpoints import authenticated_user_only
-from graphql_schema.entities.resolvers.base import get_base_resolver, get_list, get_one
+from graphql_schema.entities.resolvers.base import BaseQueryResolver
 from graphql_schema.entities.types.types import PointOfInterestType
 
 
@@ -12,14 +12,14 @@ class PointOfInterestTypeQueries:
     @strawberry.field()
     @authenticated_user_only()
     async def point_of_interest_types(root, info) -> List[PointOfInterestType]:
-        query = get_base_resolver(models.PointOfInterestType, user_id=info.context.user_id)
-        return await get_list(models.PointOfInterestType, query)
+        return await BaseQueryResolver(PointOfInterestType, models.PointOfInterestType).get_list(info.context.user_id)
 
     @strawberry.field()
     @authenticated_user_only()
     async def point_of_interest_type(root, info, id: int) -> PointOfInterestType:
-        query = get_base_resolver(models.PointOfInterestType, user_id=info.context.user_id, object_id=id)
-        return await get_one(models.PointOfInterestType, query)
+        return await BaseQueryResolver(PointOfInterestType, models.PointOfInterestType).get_one(
+            id, info.context.user_id
+        )
 
 #
 # @strawberry.type

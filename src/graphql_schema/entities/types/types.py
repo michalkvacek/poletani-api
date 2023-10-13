@@ -2,7 +2,6 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional, Annotated, List
 import strawberry
-from config import API_URL
 from database import models
 from decorators.endpoints import authenticated_user_only
 from external.gpx_parser import GPXParser
@@ -17,65 +16,16 @@ from graphql_schema.dataloaders.single_model import (
     poi_dataloader, poi_type_dataloader, event_dataloader, aircraft_dataloader, airport_dataloader, cover_photo_loader,
     airport_weather_info_loader, organizations_dataloader
 )
-from graphql_schema.entities.airport import Airport
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
-from paths import get_photo_basepath
-from upload_utils import file_exists, get_public_url
-
-
-@strawberry_sqlalchemy_type(models.FlightTrack)
-class FlightTrack:
-    point_of_interest: Optional[PointOfInterest] = strawberry.field(
-        resolver=lambda root: poi_dataloader.load(root.point_of_interest_id)
-    )
-    airport: Optional[Airport] = strawberry.field(
-        resolver=lambda root: airport_dataloader.load(root.airport_id)
-    )
-
-
-@strawberry_sqlalchemy_type(models.PointOfInterestType)
-class PointOfInterestType:
-    pass
-
-
-@strawberry_sqlalchemy_type(models.WeatherInfo)
-class WeatherInfo:
-    pass
+from paths import (
+    get_public_url, get_avatar_url, get_title_image_url, get_photo_thumbnail_url, get_photo_url, FLIGHT_GPX_TRACK_PATH
+)
 
 
 @strawberry.type
 class Point:
     lat: float
     lng: float
-
-
-@strawberry_sqlalchemy_type(models.PointOfInterest)
-class PointOfInterest:
-    type: Optional[PointOfInterestType] = strawberry.field(
-        resolver=lambda root: poi_type_dataloader.load(root.type_id)
-    )
-    photos: List[Annotated["Photo", strawberry.lazy('.photo')]] = strawberry.field(
-        resolver=lambda root: poi_photos_dataloader.load(root.id)
-    )
-    flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(
-        resolver=lambda root: flight_by_poi_dataloader.load(root.id)
-    )
-
-
-@strawberry_sqlalchemy_type(models.Photo)
-class Photo:
-    def resolve_thumb_url(root):
-        thumbnail = get_photo_basepath(root.flight_id) + "/thumbs/" + root.filename
-        if not file_exists(thumbnail):
-            return get_public_url(f"photos/{root.flight_id}/{root.filename}")
-
-        return get_public_url(f"photos/{root.flight_id}/thumbs/{root.filename}")
-
-    url: str = strawberry.field(resolver=lambda root: get_public_url(f"photos/{root.flight_id}/{root.filename}"))
-    thumbnail_url: str = strawberry.field(resolver=resolve_thumb_url)
-    point_of_interest: Optional[Annotated["PointOfInterest", strawberry.lazy('.poi')]] = strawberry.field(
-        resolver=lambda root: poi_dataloader.load(root.point_of_interest_id)
-    )
 
 
 @strawberry.type
@@ -92,6 +42,45 @@ class GPXTrack:
     avg_altitude: float
 
 
+@strawberry_sqlalchemy_type(models.Airport)
+class Airport:
+    pass
+
+
+@strawberry_sqlalchemy_type(models.FlightTrack)
+class FlightTrack:
+    point_of_interest: Optional[PointOfInterest] = strawberry.field(
+        resolver=lambda root: poi_dataloader.load(root.point_of_interest_id)
+    )
+    airport: Optional[Airport] = strawberry.field(resolver=lambda root: airport_dataloader.load(root.airport_id))
+
+
+@strawberry_sqlalchemy_type(models.PointOfInterestType)
+class PointOfInterestType:
+    pass
+
+
+@strawberry_sqlalchemy_type(models.WeatherInfo)
+class WeatherInfo:
+    pass
+
+
+@strawberry_sqlalchemy_type(models.PointOfInterest)
+class PointOfInterest:
+    type: Optional[PointOfInterestType] = strawberry.field(resolver=lambda root: poi_type_dataloader.load(root.type_id))
+    photos: List[Photo] = strawberry.field(resolver=lambda root: poi_photos_dataloader.load(root.id))
+    flights: List[Flight] = strawberry.field(resolver=lambda root: flight_by_poi_dataloader.load(root.id))
+
+
+@strawberry_sqlalchemy_type(models.Photo)
+class Photo:
+    url: str = strawberry.field(resolver=get_photo_url)
+    thumbnail_url: str = strawberry.field(resolver=get_photo_thumbnail_url)
+    point_of_interest: Optional[PointOfInterest] = strawberry.field(
+        resolver=lambda root: poi_dataloader.load(root.point_of_interest_id)
+    )
+
+
 @strawberry_sqlalchemy_type(models.Flight)
 class Flight:
     async def load_gpx_track(root):
@@ -99,7 +88,7 @@ class Flight:
             return None
 
         try:
-            gpx_parser = GPXParser(f"/app/uploads/tracks/{root.gpx_track_filename}")
+            gpx_parser = GPXParser(f"{FLIGHT_GPX_TRACK_PATH}/{root.gpx_track_filename}")
         except OSError:
             return None
 
@@ -146,9 +135,7 @@ class Flight:
 
 @strawberry_sqlalchemy_type(models.Copilot)
 class Copilot:
-    flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(
-        resolver=lambda root: flights_by_copilot_dataloader.load(root.id)
-    )
+    flights: List[Flight] = strawberry.field(resolver=lambda root: flights_by_copilot_dataloader.load(root.id))
 
 
 @strawberry_sqlalchemy_type(models.Aircraft)
@@ -156,40 +143,24 @@ class Aircraft:
     photo_url: Optional[str] = strawberry.field(
         resolver=lambda root: get_public_url(f"aircrafts/{root.photo_filename}") if root.photo_filename else None
     )
-    flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(
-        resolver=lambda root: flights_by_aircraft_dataloader.load(root.id)
-    )
-    organization: Optional[Annotated["Organization", strawberry.lazy(".organization")]] = strawberry.field(
+    flights: List[Flight] = strawberry.field(resolver=lambda root: flights_by_aircraft_dataloader.load(root.id))
+    organization: Optional[Organization] = strawberry.field(
         resolver=lambda root: organizations_dataloader.load(root.organization_id)
     )
 
 
 @strawberry_sqlalchemy_type(models.Organization)
 class Organization:
-    users: List[Annotated["User", strawberry.lazy(".user")]] = strawberry.field(
-        resolver=lambda root: users_in_organization_dataloader.load(root.id)
-    )
-    aircrafts: List[Annotated["Aircraft", strawberry.lazy(".aircraft")]] = strawberry.field(
+    users: List[User] = strawberry.field(resolver=lambda root: users_in_organization_dataloader.load(root.id))
+    aircrafts: List[Aircraft] = strawberry.field(
         resolver=lambda root: aircrafts_from_organization_dataloader.load(root.id)
     )
 
 
 @strawberry_sqlalchemy_type(models.User, exclude_fields=['password_hashed'])
 class User:
-    async def load_avatar_image_url(root):
-        if not root.avatar_image_filename:
-            return None
-
-        return get_public_url(f"profile/{root.id}/{root.avatar_image_filename}")
-
-    async def load_title_image_url(root):
-        if not root.title_image_filename:
-            return f"{API_URL}/static/default-title-image.jpg"
-
-        return get_public_url(f"profile/{root.id}/{root.title_image_filename}")
-
-    avatar_image_url: Optional[str] = strawberry.field(resolver=load_avatar_image_url)
-    title_image_url: str = strawberry.field(resolver=load_title_image_url)
+    avatar_image_url: Optional[str] = strawberry.field(resolver=lambda root: get_avatar_url(root))
+    title_image_url: str = strawberry.field(resolver=lambda root: get_title_image_url(root))
     organizations: List[Annotated['Organization', strawberry.lazy(".organization")]] = strawberry.field(
         resolver=lambda root: user_organizations_dataloader.load(root.id)
     )

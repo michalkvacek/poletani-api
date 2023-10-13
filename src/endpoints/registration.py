@@ -4,7 +4,7 @@ from sqlalchemy import select
 from typing import Optional
 from pydantic import BaseModel, root_validator, Field
 from database.models import User
-from dependencies.db import get_session
+from database.transaction import get_session
 from passlib.hash import bcrypt
 
 

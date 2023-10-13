@@ -53,16 +53,19 @@ class GPXParser:
 
     @cached()
     async def get_max_speed(self):
-        return max(await self.get_speed())
+        return max(await self.get_speed()) or 0
 
     @cached()
     async def get_avg_speed(self):
         speeds = await self.get_speed()
+        if not speeds:
+            return 0
+
         return round(sum(speeds) / len(speeds), 2)
 
     @cached()
     async def get_max_altitude(self):
-        return max(await self.get_altitude())
+        return max(await self.get_altitude()) or 0
 
     @cached()
     async def get_avg_altitude(self):
@@ -89,5 +92,4 @@ class GPXParser:
         return self.gpx
 
     def write(self, tree: _ElementTree, output: str):
-        print(f"ZAPISUJI DO {output}")
         tree.write(output)

@@ -4,7 +4,7 @@ from passlib.hash import bcrypt
 from sqlalchemy import select
 from starlette.responses import Response
 from database.models import User
-from dependencies.db import get_session
+from database.transaction import get_session
 from endpoints.base import AuthEndpoint
 from pydantic import BaseModel
 

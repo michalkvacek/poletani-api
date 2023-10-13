@@ -10,12 +10,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 class BaseModel:
     excluded_columns_in_dict = ("deleted",)
 
+    @classmethod
+    def _get_column_names(cls):
+        return [col.name for col in cls.__table__.columns]
+
     def as_dict(self):
-        return {
-            c.name: getattr(self, c.name)
-            for c in self.__table__.columns
-            if c.name not in self.excluded_columns_in_dict
-        }
+        return {c: getattr(self, c) for c in self._get_column_names() if c not in self.excluded_columns_in_dict}
 
     @classmethod
     async def get_one(cls, db_session: AsyncSession, id: int):
@@ -23,7 +23,7 @@ class BaseModel:
 
     @classmethod
     async def create(cls, db_session: AsyncSession, data: dict):
-        model = cls(**data)
+        model = cls(**{col: data[col] for col in cls._get_column_names() if col in data})
         db_session.add(model)
         await db_session.flush()
 
@@ -37,7 +37,7 @@ class BaseModel:
         if not obj:
             obj = await cls.get_one(db_session, id)
         for key, value in data.items():
-            if getattr(obj, key) != value:
+            if key in cls._get_column_names() and getattr(obj, key) != value:
                 setattr(obj, key, value)
 
         return obj
