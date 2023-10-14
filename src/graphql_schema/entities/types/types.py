@@ -1,6 +1,6 @@
 from __future__ import annotations
 from datetime import datetime
-from typing import Optional, Annotated, List
+from typing import Optional, List
 import strawberry
 from database import models
 from decorators.endpoints import authenticated_user_only
@@ -10,7 +10,7 @@ from graphql_schema.dataloaders.multi_models import (
     poi_photos_dataloader, flight_by_poi_dataloader, flight_copilots_dataloader, flight_track_dataloader,
     photos_dataloader, flights_by_aircraft_dataloader, users_in_organization_dataloader,
     aircrafts_from_organization_dataloader, user_organizations_dataloader, flights_by_event_dataloader,
-    flights_by_copilot_dataloader
+    flights_by_copilot_dataloader, public_flights_by_event_dataloader
 )
 from graphql_schema.dataloaders.single_model import (
     poi_dataloader, poi_type_dataloader, event_dataloader, aircraft_dataloader, airport_dataloader, cover_photo_loader,
@@ -161,13 +161,16 @@ class Organization:
 class User:
     avatar_image_url: Optional[str] = strawberry.field(resolver=lambda root: get_avatar_url(root))
     title_image_url: str = strawberry.field(resolver=lambda root: get_title_image_url(root))
-    organizations: List[Annotated['Organization', strawberry.lazy(".organization")]] = strawberry.field(
+    organizations: List[Organization] = strawberry.field(
         resolver=lambda root: user_organizations_dataloader.load(root.id)
     )
 
 
 @strawberry_sqlalchemy_type(models.Event)
 class Event:
-    flights: List[Annotated["Flight", strawberry.lazy('.flight')]] = strawberry.field(
-        resolver=lambda root: flights_by_event_dataloader.load(root.id)
-    )
+    async def load_flights(root, info):
+        is_user_logged_in = bool(info.context.user_id)
+        dataloader = flights_by_event_dataloader if is_user_logged_in else public_flights_by_event_dataloader
+        return await dataloader.load(root.id)
+
+    flights: List[Flight] = strawberry.field(resolver=load_flights)

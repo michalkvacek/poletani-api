@@ -25,7 +25,7 @@ class FlightQueryResolver(BaseQueryResolver):
         query = super().get_query(
             user_id, object_id,
             order_by=[models.Flight.takeoff_datetime.desc()],
-            include_public=bool(user_id)
+            only_public=not bool(user_id)
         )
 
         if kwargs.get('username'):

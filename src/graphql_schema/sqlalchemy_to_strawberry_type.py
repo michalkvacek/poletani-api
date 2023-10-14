@@ -3,6 +3,7 @@ from typing import List, Optional
 import strawberry
 import sqlalchemy
 from sqlalchemy import Column
+from logger import log
 from database.models import BaseModel
 from graphql_schema.entities.types.base import BaseGraphqlInputType
 
@@ -22,7 +23,7 @@ def get_annotations_for_scalars(model: BaseModel, exclude_fields=None, force_opt
             type_ = typing.Optional[column.type.python_type] if is_optional else column.type.python_type
             annotations_[name] = type_
         except NotImplementedError as e:
-            print(f"Neimplementovano: {e}, {name=}")
+            log.warning(f"Cannot annotate {name} in {model} for GQL type. Exception: {e}")
 
     return annotations_
 

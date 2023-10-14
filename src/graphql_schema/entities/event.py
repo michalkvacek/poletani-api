@@ -1,9 +1,13 @@
-from typing import List
+from typing import List, Optional
 import strawberry
+from fastapi import HTTPException
+from starlette.status import HTTP_401_UNAUTHORIZED
+
 from database import models
 from decorators.endpoints import authenticated_user_only
 from database.transaction import get_session
-from graphql_schema.entities.resolvers.base import BaseQueryResolver, BaseMutationResolver
+from graphql_schema.entities.resolvers.base import BaseMutationResolver
+from graphql_schema.entities.resolvers.event import EventQueryResolver
 from graphql_schema.entities.types.mutation_input import CreateEventInput, EditEventInput
 from graphql_schema.entities.types.types import Event
 
@@ -11,17 +15,26 @@ from graphql_schema.entities.types.types import Event
 @strawberry.type
 class EventQueries:
     @strawberry.field()
-    @authenticated_user_only()
-    async def events(root, info) -> List[Event]:
-        return await BaseQueryResolver(Event, models.Event).get_list(
+    async def events(root, info, username: Optional[str] = None) -> List[Event]:
+        if not info.context.user_id and not username:
+            raise HTTPException(HTTP_401_UNAUTHORIZED)
+
+        return await EventQueryResolver().get_list(
             info.context.user_id,
+            username=username,
             order_by=[models.Event.date_from.desc(), models.Event.id.desc()]
         )
 
     @strawberry.field()
-    @authenticated_user_only()
-    async def event(root, info, id: int) -> Event:
-        return await BaseQueryResolver(Event, models.Event).get_one(id, user_id=info.context.user_id)
+    async def event(root, info, id: int, username: Optional[str] = None) -> Event:
+        if not info.context.user_id and not username:
+            raise HTTPException(HTTP_401_UNAUTHORIZED)
+
+        return await EventQueryResolver().get_one(
+            id,
+            username=username,
+            user_id=info.context.user_id
+        )
 
 
 @strawberry.type
@@ -36,7 +49,7 @@ class EventMutation:
     async def edit_event(root, info, id: int, input: EditEventInput) -> Event:
         async with get_session() as db:
             event = (await db.scalars(
-                BaseQueryResolver(Event, models.Event).get_query(user_id=info.context.user_id, object_id=id)
+                EventQueryResolver().get_query(user_id=info.context.user_id, object_id=id)
             )).one()
 
             updated_event = await models.Event.update(db, obj=event, data=input.to_dict())

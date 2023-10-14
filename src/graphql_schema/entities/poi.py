@@ -45,7 +45,7 @@ class PointOfInterestMutation:
         input_data = input.to_dict()
 
         query = BaseQueryResolver(PointOfInterest, models.PointOfInterest).get_query(
-            user_id=info.context.user_id, object_id=id, include_public=False
+            user_id=info.context.user_id, object_id=id, only_public=False
         )
 
         async with get_session() as db:

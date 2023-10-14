@@ -54,6 +54,29 @@ class EditEventInput(BaseGraphqlInputType):
     pass
 
 
+@strawberry.input
+class UploadPhotoInput:
+    photo: Upload
+    flight_id: int
+    name: Optional[str] = None
+    description: Optional[str] = None
+    point_of_interest: Optional[ComboboxInput] = None
+
+
+@strawberry.input
+class EditPhotoInput:
+    name: Optional[str] = None
+    description: Optional[str] = None
+    point_of_interest: Optional[ComboboxInput] = None
+    is_flight_cover: Optional[bool] = None
+
+    def to_dict(self):
+        return {
+            key: getattr(self, key) for key in ('name', 'description', 'is_flight_cover')
+            if getattr(self, key) is not None
+        }
+
+
 @strawberry_sqlalchemy_input(models.Flight, exclude_fields=[
     "id", "aircraft_id", "deleted", "landing_airport_id", "takeoff_airport_id",
     "takeoff_weather_info_id", "landing_weather_info_id", "gpx_track_filename", "event_id"

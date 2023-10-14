@@ -48,6 +48,15 @@ flights_by_event_dataloader = DataLoader(
     cache=False
 )
 
+public_flights_by_event_dataloader = DataLoader(
+    load_fn=MultiModelsDataloader(
+        models.Flight,
+        relationship_column=models.Event.id,
+        filters=[models.Flight.is_public.is_(True)],
+        extra_join=[models.Flight.event]).load,
+    cache=False
+)
+
 user_organizations_dataloader = DataLoader(load_fn=MultiModelsDataloader(
     models.Organization,
     relationship_column=models.user_is_in_organization.c.user_id,

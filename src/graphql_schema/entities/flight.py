@@ -63,7 +63,7 @@ class FlightMutation:
                 "name": "",
                 "description": ""
             })
-            flight = FlightMutationResolver().create(data, info.context.user_id)
+            flight = await FlightMutationResolver().create(data, info.context.user_id)
 
             info.context.background_tasks.add_task(
                 download_weather,

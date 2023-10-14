@@ -90,7 +90,7 @@ class App:
         if APP_DEBUG:
             @self.api_router.get("/graphql/autologin")
             async def autologin():
-                access_token = self.access_security.create_access_token(subject={"id": 1, "name": "Franta Vomacka"})
+                access_token = self.access_security.create_access_token(subject={"id": 6, "name": "Franta Vomacka"})
 
                 response = RedirectResponse(url="/graphql")
                 self.access_security.set_access_cookie(response, access_token, expires_delta=timedelta(days=14))
