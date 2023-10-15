@@ -68,16 +68,17 @@ class PhotoMutation:
                 BaseQueryResolver(Photo, models.Photo).get_query(user_id=info.context.user_id, object_id=id)
             )).one()
             photo_filename = photo.filename
+            flight_id = photo.flight_id
             photo_as_dict = photo.as_dict()
 
         await asyncio.gather(
             rotate_image(
-                path=get_photo_basepath(photo.flight_id),
+                path=get_photo_basepath(flight_id),
                 filename=photo_filename,
                 angle=angle,
             ),
             rotate_image(
-                path=get_photo_basepath(photo.flight_id) + "/thumbs",
+                path=get_photo_basepath(flight_id) + "/thumbs",
                 filename=photo_filename,
                 angle=angle,
             ),

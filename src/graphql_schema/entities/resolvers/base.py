@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from database import models
 from database.query_builder import QueryBuilder
 from database.transaction import get_session
+from graphql_schema.entities.types.base import BaseGraphqlInputType
 
 GQL_TYPE = TypeVar('GQL_TYPE')
 
@@ -75,6 +76,11 @@ class BaseMutationResolver(BaseResolver):
 
         model = await self.model.update(db, data=data, **update_where)
         return self.graphql_type(**model.as_dict())
+
+    async def update(self, id: int, data: BaseGraphqlInputType, user_id: int) -> GQL_TYPE:
+        async with get_session() as db:
+            item = await self._get_one(db, id, user_id)
+            return await self._do_update(db, item, data.to_dict())
 
     async def delete(self, user_id: int, id: int) -> GQL_TYPE:
         async with get_session() as db:

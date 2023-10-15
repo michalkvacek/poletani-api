@@ -47,10 +47,4 @@ class EventMutation:
     @strawberry.mutation
     @authenticated_user_only()
     async def edit_event(root, info, id: int, input: EditEventInput) -> Event:
-        async with get_session() as db:
-            event = (await db.scalars(
-                EventQueryResolver().get_query(user_id=info.context.user_id, object_id=id)
-            )).one()
-
-            updated_event = await models.Event.update(db, obj=event, data=input.to_dict())
-            return Event(**updated_event.as_dict())
+        return await BaseMutationResolver(Event, models.Event).update(id, input, info.context.user_id)
