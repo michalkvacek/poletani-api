@@ -14,7 +14,7 @@ from graphql_schema.dataloaders.multi_models import (
 )
 from graphql_schema.dataloaders.single_model import (
     poi_dataloader, poi_type_dataloader, event_dataloader, aircraft_dataloader, airport_dataloader, cover_photo_loader,
-    airport_weather_info_loader, organizations_dataloader
+    airport_weather_info_loader, organizations_dataloader, flight_dataloader, photo_adjustment_dataloader, photo_dataloader
 )
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
 from paths import (
@@ -65,6 +65,11 @@ class WeatherInfo:
     pass
 
 
+@strawberry_sqlalchemy_type(models.PhotoAdjustment)
+class PhotoAdjustment:
+    photo: Photo = strawberry.field(resolver=lambda root: photo_dataloader.load(root.photo_id))
+
+
 @strawberry_sqlalchemy_type(models.PointOfInterest)
 class PointOfInterest:
     type: Optional[PointOfInterestType] = strawberry.field(resolver=lambda root: poi_type_dataloader.load(root.type_id))
@@ -79,6 +84,8 @@ class Photo:
     point_of_interest: Optional[PointOfInterest] = strawberry.field(
         resolver=lambda root: poi_dataloader.load(root.point_of_interest_id)
     )
+    flight: Flight = strawberry.field(resolver=lambda root: flight_dataloader.load(root.flight_id))
+    adjustment: Optional[PhotoAdjustment] = strawberry.field(resolver=lambda root: photo_adjustment_dataloader.load(root.id))
 
 
 @strawberry_sqlalchemy_type(models.Flight)

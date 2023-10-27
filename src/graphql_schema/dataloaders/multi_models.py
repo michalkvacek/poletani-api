@@ -27,11 +27,13 @@ flights_by_copilot_dataloader = DataLoader(
         extra_join=[models.Flight.copilots]).load,
     cache=False
 )
+
 flights_by_aircraft_dataloader = DataLoader(
     load_fn=MultiModelsDataloader(
         models.Flight,
         relationship_column=models.Flight.aircraft_id
     ).load, cache=False)
+
 flight_by_poi_dataloader = DataLoader(
     load_fn=MultiModelsDataloader(
         models.Flight,

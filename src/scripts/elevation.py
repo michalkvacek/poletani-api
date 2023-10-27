@@ -2,10 +2,8 @@ import asyncio
 import sys
 from sqlalchemy import select
 
-from paths import FLIGHT_GPX_TRACK_PATH
-
 sys.path.insert(0, "/app/src")
-
+from paths import FLIGHT_GPX_TRACK_PATH  # noqa
 from database import async_session, models  # noqa
 from external.elevation import elevation_api  # noqa
 from external.gpx_parser import GPXParser  # noqa

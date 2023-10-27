@@ -1,4 +1,6 @@
 from datetime import timedelta
+from typing import Optional
+
 from fastapi import FastAPI, APIRouter, Depends, Security
 from fastapi_jwt import JwtAuthorizationCredentials, JwtAccessBearerCookie, JwtRefreshBearerCookie
 from sqlalchemy import select
@@ -10,6 +12,7 @@ from strawberry.fastapi import GraphQLRouter
 from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG, ALLOW_CORS_ORIGINS
 from database import models, async_session
 from endpoints.login import LoginEndpoint, LoginInput, RefreshEndpoint, LogoutEndpoint
+from endpoints.photo_editor_preview import PhotoEditorEndpoint
 from endpoints.registration import RegistrationInput, RegistrationEndpoint
 from graphql_schema.schema import schema, GraphQLContext
 
@@ -120,6 +123,36 @@ class App:
                 access_token=self.access_security,
                 refresh_token=self.refresh_security
             ).on_post(resp)
+
+        @self.api_router.get("/photo/editor-preview/{photo_id}")
+        async def photo_editor_preview(
+                photo_id: int,
+                brightness: Optional[float] = None,
+                contrast: Optional[float] = None,
+                saturation: Optional[float] = None,
+                sharpness: Optional[float] = None,
+                rotate: Optional[float] = None,
+                crop_left: Optional[float] = None,
+                crop_top: Optional[float] = None,
+                crop_width: Optional[float] = None,
+                crop_height: Optional[float] = None,
+        ):
+            return await PhotoEditorEndpoint(
+                access_token=self.access_security,
+                refresh_token=self.refresh_security
+            ).show_preview(
+                photo_id=photo_id,
+                logged_user_id=0,
+                saturation=saturation,
+                brightness=brightness,
+                contrast=contrast,
+                sharpness=sharpness,
+                crop_top=crop_top,
+                crop_left=crop_left,
+                crop_height=crop_height,
+                crop_width=crop_width,
+                rotate=rotate,
+            )
 
         @self.api_router.post("/registration", status_code=201)
         async def registration(user: RegistrationInput):

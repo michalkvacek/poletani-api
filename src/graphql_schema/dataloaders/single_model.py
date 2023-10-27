@@ -16,7 +16,9 @@ organizations_dataloader = create_dataloader(models.Organization)
 airport_weather_info_loader = create_dataloader(models.WeatherInfo)
 poi_dataloader = create_dataloader(models.PointOfInterest)
 poi_type_dataloader = create_dataloader(models.PointOfInterestType)
-
+flight_dataloader = create_dataloader(models.Flight)
+photo_adjustment_dataloader = create_dataloader(models.PhotoAdjustment, relationship_column=models.PhotoAdjustment.photo_id)
+photo_dataloader = create_dataloader(models.Photo)
 cover_photo_loader = create_dataloader(
     models.Photo,
     relationship_column=models.Photo.flight_id,

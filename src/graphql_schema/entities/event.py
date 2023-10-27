@@ -2,10 +2,8 @@ from typing import List, Optional
 import strawberry
 from fastapi import HTTPException
 from starlette.status import HTTP_401_UNAUTHORIZED
-
 from database import models
 from decorators.endpoints import authenticated_user_only
-from database.transaction import get_session
 from graphql_schema.entities.resolvers.base import BaseMutationResolver
 from graphql_schema.entities.resolvers.event import EventQueryResolver
 from graphql_schema.entities.types.mutation_input import CreateEventInput, EditEventInput

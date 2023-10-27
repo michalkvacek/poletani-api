@@ -77,6 +77,25 @@ class EditPhotoInput:
         }
 
 
+@strawberry.input
+class CropInput(BaseGraphqlInputType):
+    left: float
+    top: float
+    width: float
+    height: float
+
+
+@strawberry.input
+class AdjustmentInput:
+    rotate: Optional[float] = 0
+    crop_after_rotate: Optional[bool] = True,
+    brightness: Optional[float] = 1
+    contrast: Optional[float] = 1
+    saturation: Optional[float] = 1
+    sharpness: Optional[float] = 1
+    crop: Optional[CropInput] = None
+
+
 @strawberry_sqlalchemy_input(models.Flight, exclude_fields=[
     "id", "aircraft_id", "deleted", "landing_airport_id", "takeoff_airport_id",
     "takeoff_weather_info_id", "landing_weather_info_id", "gpx_track_filename", "event_id"

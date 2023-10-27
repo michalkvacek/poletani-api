@@ -118,6 +118,8 @@ class Photo(BaseModel):
     filename: Mapped[str] = mapped_column(String(128), nullable=False)
     is_flight_cover: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    width: Mapped[int] = mapped_column(Integer, nullable=False)
+    height: Mapped[int] = mapped_column(Integer, nullable=False)
     exposed_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     gps_latitude: Mapped[float] = mapped_column(Float, nullable=True)
     gps_longitude: Mapped[float] = mapped_column(Float, nullable=True)
@@ -130,7 +132,29 @@ class Photo(BaseModel):
 
     flight: Mapped['Flight'] = relationship(foreign_keys=[flight_id])
     point_of_interest: Mapped['PointOfInterest'] = relationship()
+    adjustment: Mapped['PhotoAdjustment'] = relationship()
     created_by: Mapped['User'] = relationship()
+
+
+class PhotoAdjustment(BaseModel):
+    __tablename__ = "photo_adjustment"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    photo_id: Mapped[int] = mapped_column(Integer, ForeignKey('photo.id'), nullable=False)
+    rotate: Mapped[float] = mapped_column(Float, nullable=True)
+    contrast: Mapped[float] = mapped_column(Float, nullable=True)
+    brightness: Mapped[float] = mapped_column(Float, nullable=True)
+    saturation: Mapped[float] = mapped_column(Float, nullable=True)
+    sharpness: Mapped[float] = mapped_column(Float, nullable=True)
+
+    crop_left: Mapped[float] = mapped_column(Float, nullable=True)
+    crop_top: Mapped[float] = mapped_column(Float, nullable=True)
+    crop_width: Mapped[float] = mapped_column(Float, nullable=True)
+    crop_height: Mapped[float] = mapped_column(Float, nullable=True)
+
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    photo: Mapped['Photo'] = relationship()
 
 
 class Aircraft(BaseModel):
