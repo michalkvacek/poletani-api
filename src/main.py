@@ -1,6 +1,6 @@
+import sentry_sdk
 from datetime import timedelta
 from typing import Optional
-
 from fastapi import FastAPI, APIRouter, Depends, Security
 from fastapi_jwt import JwtAuthorizationCredentials, JwtAccessBearerCookie, JwtRefreshBearerCookie
 from sqlalchemy import select
@@ -9,7 +9,7 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse, Response
 from starlette.staticfiles import StaticFiles
 from strawberry.fastapi import GraphQLRouter
-from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG, ALLOW_CORS_ORIGINS
+from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG, ALLOW_CORS_ORIGINS, SENTRY_DSN, ACCESS_TOKEN_VALIDITY_MINUTES, REFRESH_TOKEN_VALIDITY_DAYS
 from database import models, async_session
 from endpoints.login import LoginEndpoint, LoginInput, RefreshEndpoint, LogoutEndpoint
 from endpoints.photo_editor_preview import PhotoEditorEndpoint
@@ -22,15 +22,18 @@ class App:
     access_security = JwtAccessBearerCookie(
         secret_key=APP_SECRET_KEY,
         auto_error=False,
-        access_expires_delta=timedelta(minutes=20),
+        access_expires_delta=timedelta(minutes=ACCESS_TOKEN_VALIDITY_MINUTES),
     )
     refresh_security = JwtRefreshBearerCookie(
         secret_key=APP_SECRET_KEY,
         auto_error=True,
-        refresh_expires_delta=timedelta(days=30),
+        refresh_expires_delta=timedelta(days=REFRESH_TOKEN_VALIDITY_DAYS),
     )
 
     def create_app(self):
+        if SENTRY_DSN:
+            sentry_sdk.init(dsn=SENTRY_DSN, enable_tracing=True)
+
         app = FastAPI()
 
         self.setup_exception_handlers(app)

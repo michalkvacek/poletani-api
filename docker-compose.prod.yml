@@ -8,5 +8,7 @@ services:
     restart: "always"
     env_file:
       - .env
+    environment:
+      SENTRY_DSN: "https://184d1d6bd39f4fbb94804ae84e9afdd5@o472821.ingest.sentry.io/5506983"
     volumes:
       - ./uploads:/app/uploads

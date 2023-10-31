@@ -75,6 +75,7 @@ class PhotoEditor:
         return round(w), round(h)
 
     def rotate(self, degrees: float, crop_after_rotate: bool = False):
+        degrees *= -1
         self.img = self.img.rotate(degrees, resample=Image.Resampling.BICUBIC, expand=True)
 
         if crop_after_rotate:

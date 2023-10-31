@@ -132,7 +132,7 @@ class Photo(BaseModel):
 
     flight: Mapped['Flight'] = relationship(foreign_keys=[flight_id])
     point_of_interest: Mapped['PointOfInterest'] = relationship()
-    adjustment: Mapped['PhotoAdjustment'] = relationship()
+    adjustment: Mapped['PhotoAdjustment'] = relationship(passive_deletes=True)
     created_by: Mapped['User'] = relationship()
 
 
@@ -140,7 +140,7 @@ class PhotoAdjustment(BaseModel):
     __tablename__ = "photo_adjustment"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    photo_id: Mapped[int] = mapped_column(Integer, ForeignKey('photo.id'), nullable=False)
+    photo_id: Mapped[int] = mapped_column(Integer, ForeignKey('photo.id', ondelete='CASCADE'), nullable=False)
     rotate: Mapped[float] = mapped_column(Float, nullable=True)
     contrast: Mapped[float] = mapped_column(Float, nullable=True)
     brightness: Mapped[float] = mapped_column(Float, nullable=True)
