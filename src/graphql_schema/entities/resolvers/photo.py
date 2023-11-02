@@ -60,7 +60,6 @@ class PhotoMutationResolver(BaseMutationResolver):
             original_filename=self._copy_original(path, filename)
         )
 
-
     async def upload(self, info, input: UploadPhotoInput) -> Photo:
         path = get_photo_basepath(input.flight_id)
         filename = await handle_file_upload(input.photo, path)
@@ -161,10 +160,13 @@ class PhotoMutationResolver(BaseMutationResolver):
 
         info.context.background_tasks.add_task(generate_thumbnail, path=photo.path, filename=photo.filename)
 
-        async with get_session() as db:
+        async with (get_session() as db):
             await db.execute(delete(models.PhotoAdjustment).filter(models.PhotoAdjustment.photo_id == id))
 
-            crop_info = {"crop_" + key: value for key, value in adjustment.crop.to_dict().items()} if adjustment.crop else {}
+            crop_info = {
+                "crop_" + key: value
+                for key, value in adjustment.crop.to_dict().items()
+            } if adjustment.crop else {}
             await models.PhotoAdjustment.create(db, {
                 "photo_id": id,
                 "contrast": adjustment.contrast,
@@ -189,4 +191,3 @@ class PhotoMutationResolver(BaseMutationResolver):
         delete_file(f"{base_path}/thumbs/{photo.filename}", silent=True)
 
         return photo
-

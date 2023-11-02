@@ -42,7 +42,7 @@ class FlightMutationResolver(BaseMutationResolver):
     def __init__(self):
         super().__init__(Flight, models.Flight)
 
-    async def update(self, context, id: int, input: EditFlightInput):
+    async def update(self, context, id: int, input: EditFlightInput) -> Flight:
         user_id = context.user_id
         async with get_session() as db:
             flight = await self._get_one(db, id, user_id)

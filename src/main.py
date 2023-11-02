@@ -9,7 +9,10 @@ from starlette.middleware.cors import CORSMiddleware
 from starlette.responses import RedirectResponse, Response
 from starlette.staticfiles import StaticFiles
 from strawberry.fastapi import GraphQLRouter
-from config import APP_SECRET_KEY, GRAPHIQL, APP_DEBUG, ALLOW_CORS_ORIGINS, SENTRY_DSN, ACCESS_TOKEN_VALIDITY_MINUTES, REFRESH_TOKEN_VALIDITY_DAYS
+from config import (
+    APP_SECRET_KEY, GRAPHIQL, APP_DEBUG, ALLOW_CORS_ORIGINS, SENTRY_DSN, ACCESS_TOKEN_VALIDITY_MINUTES,
+    REFRESH_TOKEN_VALIDITY_DAYS
+)
 from database import models, async_session
 from endpoints.login import LoginEndpoint, LoginInput, RefreshEndpoint, LogoutEndpoint
 from endpoints.photo_editor_preview import PhotoEditorEndpoint
