@@ -2,7 +2,8 @@ from typing import List, Optional
 import strawberry
 from database import models
 from decorators.endpoints import authenticated_user_only
-from graphql_schema.entities.resolvers.base import BaseQueryResolver, BaseMutationResolver
+from graphql_schema.entities.resolvers.base import BaseMutationResolver
+from graphql_schema.entities.resolvers.copilot import CopilotQueryResolver
 from graphql_schema.entities.types.mutation_input import CreateCopilotInput, EditCopilotInput
 from graphql_schema.entities.types.types import Copilot
 
@@ -12,12 +13,15 @@ class CopilotQueries:
     @strawberry.field()
     @authenticated_user_only()
     async def copilots(root, info) -> List[Copilot]:
-        return await BaseQueryResolver(Copilot, models.Copilot).get_list(info.context.user_id)
+        return await CopilotQueryResolver().get_list(info.context.user_id)
 
     @strawberry.field()
     async def copilot(root, info, id: int, pilot_username: Optional[str] = None) -> Copilot:
-        params = {}
-        return await BaseQueryResolver(Copilot, models.Copilot).get_one(id, user_id=info.context.user_id)
+        return await CopilotQueryResolver().get_one(
+            id,
+            user_id=info.context.user_id,
+            pilot_username=pilot_username
+        )
 
 
 @strawberry.type
