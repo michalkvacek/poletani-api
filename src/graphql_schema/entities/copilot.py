@@ -1,5 +1,8 @@
 from typing import List, Optional
 import strawberry
+from fastapi import HTTPException
+from starlette.status import HTTP_401_UNAUTHORIZED
+
 from database import models
 from decorators.endpoints import authenticated_user_only
 from graphql_schema.entities.resolvers.base import BaseMutationResolver
@@ -17,6 +20,9 @@ class CopilotQueries:
 
     @strawberry.field()
     async def copilot(root, info, id: int, pilot_username: Optional[str] = None) -> Copilot:
+        if not info.context.user_id and not pilot_username:
+            raise HTTPException(HTTP_401_UNAUTHORIZED)
+
         return await CopilotQueryResolver().get_one(
             id,
             user_id=info.context.user_id,
