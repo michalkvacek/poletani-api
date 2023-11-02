@@ -19,7 +19,7 @@ class PhotoEditorEndpoint(AuthEndpoint):
             basepath = get_photo_basepath(photo.flight_id)
             filename = photo.filename
 
-        original_filename = '_original_'+filename
+        original_filename = '_original_' + filename
         if os.path.exists(f"{basepath}/{original_filename}"):
             filename = original_filename
 
@@ -47,7 +47,4 @@ class PhotoEditorEndpoint(AuthEndpoint):
         if adjustments:
             editor.adjust(**adjustments)
 
-
-
         return StreamingResponse(content=editor.get_as_stream(), media_type="image/jpeg")
-

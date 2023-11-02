@@ -136,7 +136,6 @@ class PhotoEditor:
         return dest
 
 
-
 # -----------
 # odsud niz to bude vse asi na smazani, vse by mela umet trida PhotoEditor
 

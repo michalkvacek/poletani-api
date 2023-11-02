@@ -10,7 +10,7 @@ class BaseGraphqlInputType:
         dict_data = {}
         for key in self.__annotations__.keys():
             value = getattr(self, key)
-            if value is None or key in self.ignored_fields + self.base_ignored_fields:
+            if value is None or key in (self.ignored_fields + self.base_ignored_fields):
                 continue
 
             if isinstance(value, datetime):

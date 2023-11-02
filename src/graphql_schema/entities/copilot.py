@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 import strawberry
 from database import models
 from decorators.endpoints import authenticated_user_only
@@ -15,8 +15,8 @@ class CopilotQueries:
         return await BaseQueryResolver(Copilot, models.Copilot).get_list(info.context.user_id)
 
     @strawberry.field()
-    @authenticated_user_only()
-    async def copilot(root, info, id: int) -> Copilot:
+    async def copilot(root, info, id: int, pilot_username: Optional[str] = None) -> Copilot:
+        params = {}
         return await BaseQueryResolver(Copilot, models.Copilot).get_one(id, user_id=info.context.user_id)
 
 
