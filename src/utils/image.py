@@ -131,6 +131,9 @@ class PhotoEditor:
             self, quality: int = 90, dest_path: Optional[str] = None, dest_filename: Optional[str] = None
     ) -> str:
         dest = f"{dest_path or self.path}/{dest_filename or self.filename}"
+
+        check_directories(dest)
+
         self.img.save(dest, 'JPEG', quality=quality)
 
         return dest

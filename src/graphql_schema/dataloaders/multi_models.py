@@ -2,7 +2,6 @@ from strawberry.dataloader import DataLoader
 from database import models
 from graphql_schema.dataloaders.base import MultiModelsDataloader
 
-# TODO: doresit razeni modelu!
 
 aircrafts_from_organization_dataloader = DataLoader(
     load_fn=MultiModelsDataloader(
@@ -24,7 +23,9 @@ flights_by_copilot_dataloader = DataLoader(
     load_fn=MultiModelsDataloader(
         models.Flight,
         relationship_column=models.Copilot.id,
-        extra_join=[models.Flight.copilots]).load,
+        extra_join=[models.Flight.copilots],
+        order_by=[models.Flight.takeoff_datetime.desc()]
+    ).load,
     cache=False
 )
 

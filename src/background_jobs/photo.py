@@ -16,4 +16,4 @@ async def resize_photo(path: str, filename: str, photo_id: int):
 async def generate_thumbnail(path: str, filename: str):
     editor = PhotoEditor(path, filename)
     editor.resize(new_width=300)
-    editor.write_to_file(quality=85, dest_path=f"{path}/thumbs/")
+    editor.write_to_file(quality=85, dest_path=f"{path}/thumbs")
