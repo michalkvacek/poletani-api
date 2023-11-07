@@ -29,6 +29,17 @@ flights_by_copilot_dataloader = DataLoader(
     cache=False
 )
 
+public_flights_by_copilot_dataloader = DataLoader(
+    load_fn=MultiModelsDataloader(
+        models.Flight,
+        relationship_column=models.Copilot.id,
+        extra_join=[models.Flight.copilots],
+        filters=[models.Flight.is_public.is_(True)],
+        order_by=[models.Flight.takeoff_datetime.desc()]
+    ).load,
+    cache=False
+)
+
 flights_by_aircraft_dataloader = DataLoader(
     load_fn=MultiModelsDataloader(
         models.Flight,

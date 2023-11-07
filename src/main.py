@@ -3,6 +3,7 @@ from datetime import timedelta
 from typing import Optional
 from fastapi import FastAPI, APIRouter, Depends, Security
 from fastapi_jwt import JwtAuthorizationCredentials, JwtAccessBearerCookie, JwtRefreshBearerCookie
+from graphql import GraphQLError
 from sqlalchemy import select
 from starlette.background import BackgroundTasks
 from starlette.middleware.cors import CORSMiddleware
@@ -35,7 +36,11 @@ class App:
 
     def create_app(self):
         if SENTRY_DSN:
-            sentry_sdk.init(dsn=SENTRY_DSN, enable_tracing=True)
+            sentry_sdk.init(
+                dsn=SENTRY_DSN,
+                enable_tracing=True,
+                ignore_errors = [GraphQLError]
+            )
 
         app = FastAPI()
 

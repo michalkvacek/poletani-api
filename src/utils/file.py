@@ -10,5 +10,7 @@ def delete_file(path: str, silent: bool = False):
 
 
 def check_directories(path: str):
-    if not os.path.isdir(path):
-        os.makedirs(path)
+    try:
+        os.makedirs(path, exist_ok=True)
+    except OSError:
+        pass

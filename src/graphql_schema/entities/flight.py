@@ -18,6 +18,7 @@ from graphql_schema.entities.types.types import Flight
 class FlightQueries:
 
     @strawberry.field()
+    @error_logging
     async def flights(root, info, username: Optional[str] = None) -> List[Flight]:
         if not info.context.user_id and not username:
             raise HTTPException(HTTP_401_UNAUTHORIZED)
@@ -36,6 +37,7 @@ class FlightQueries:
 @strawberry.type
 class FlightMutation:
     @strawberry.mutation
+    @error_logging
     @authenticated_user_only()
     async def create_flight(self, info, input: CreateFlightInput) -> Flight:
         data = input.to_dict()
@@ -77,11 +79,13 @@ class FlightMutation:
             return flight
 
     @strawberry.mutation
+    @error_logging
     @authenticated_user_only()
     async def edit_flight(self, info, id: int, input: EditFlightInput) -> Flight:
         return await FlightMutationResolver().update(info.context, id, input)
 
     @strawberry.mutation
+    @error_logging
     @authenticated_user_only()
     async def delete_flight(self, info, id: int) -> Flight:
         return await FlightMutationResolver().delete(info.context.user_id, id)

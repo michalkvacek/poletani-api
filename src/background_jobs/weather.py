@@ -7,7 +7,6 @@ from logger import log
 
 
 async def download_weather(date_time: datetime, flight_id: int, airport_id: int, type_: Literal['landing', 'takeoff']):
-    log.error("AAAAAAAAAAAAAAAAAAAAAAAAAAA")
     async with get_session() as db:
         airport = await models.Airport.get_one(db, airport_id)
         gps = (airport.gps_latitude, airport.gps_longitude)

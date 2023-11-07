@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from database import models
 from decorators.endpoints import authenticated_user_only
 from database.transaction import get_session
+from decorators.error_logging import error_logging
 from graphql_schema.entities.resolvers.base import BaseQueryResolver, BaseMutationResolver
 from graphql_schema.entities.types.mutation_input import CreateOrganizationInput, EditOrganizationInput
 from graphql_schema.entities.types.types import Organization
@@ -14,6 +15,7 @@ from graphql_schema.entities.types.types import Organization
 @strawberry.type
 class OrganizationQueries:
     @strawberry.field()
+    @error_logging
     @authenticated_user_only()
     async def organizations(root, info) -> List[Organization]:
         return await BaseQueryResolver(Organization, models.Organization).get_list(
@@ -21,6 +23,7 @@ class OrganizationQueries:
         )
 
     @strawberry.field()
+    @error_logging
     @authenticated_user_only()
     async def organization(root, info, id: int) -> Organization:
         return await BaseQueryResolver(Organization, models.Organization).get_one(id, info.context.user_id)
@@ -30,6 +33,7 @@ class OrganizationQueries:
 class OrganizationMutation:
 
     @strawberry.mutation
+    @error_logging
     @authenticated_user_only()
     async def create_organization(root, info, input: CreateOrganizationInput) -> Organization:
         return await BaseMutationResolver(Organization, models.Organization).create(
@@ -38,6 +42,7 @@ class OrganizationMutation:
         )
 
     @strawberry.mutation
+    @error_logging
     @authenticated_user_only()
     async def edit_organization(root, info, id: int, input: EditOrganizationInput) -> Organization:
         async with get_session() as db:
@@ -55,6 +60,7 @@ class OrganizationMutation:
 class OrganizationUserMutation:
 
     @strawberry.mutation
+    @error_logging
     @authenticated_user_only()
     async def add_to_organization(root, info, organization_id: int) -> Organization:
         async with get_session() as db:
@@ -75,6 +81,7 @@ class OrganizationUserMutation:
             return Organization(**organization.as_dict())
 
     @strawberry.mutation
+    @error_logging
     @authenticated_user_only()
     async def remove_from_organization(root, info, organization_id: int) -> Organization:
         async with get_session() as db:

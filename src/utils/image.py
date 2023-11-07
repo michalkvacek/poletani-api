@@ -1,10 +1,9 @@
 import io
-
 import math
 from datetime import datetime
 from typing import Optional, Tuple
 import exif
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 from PIL.ImageEnhance import Brightness, Contrast, Color, Sharpness
 from utils.file import check_directories
 from utils.gps import gps_to_decimal
@@ -130,129 +129,9 @@ class PhotoEditor:
     def write_to_file(
             self, quality: int = 90, dest_path: Optional[str] = None, dest_filename: Optional[str] = None
     ) -> str:
+        check_directories(dest_path or self.path)
+
         dest = f"{dest_path or self.path}/{dest_filename or self.filename}"
-
-        check_directories(dest)
-
         self.img.save(dest, 'JPEG', quality=quality)
 
         return dest
-
-
-# -----------
-# odsud niz to bude vse asi na smazani, vse by mela umet trida PhotoEditor
-
-async def resize_image(
-        path: str, filename: str, new_width: int, quality: int = 90,
-        dest_path: Optional[str] = None,
-        dest_filename: Optional[str] = None
-):
-    if not dest_path:
-        dest_path = path
-
-    if not dest_filename:
-        dest_filename = filename
-
-    try:
-        image = Image.open(f"{path}/{filename}")
-
-        width, height = image.size
-        new_height = int(new_width * height / width)
-
-        image = image.resize((new_width, new_height), Image.LANCZOS)
-        check_directories(dest_path)
-        image.save(f"{dest_path}/{dest_filename}", 'JPEG', quality=quality)
-
-        return new_width, new_height
-    except UnidentifiedImageError:
-        pass
-
-
-def crop_image_after_rotate(
-        original_width: int, original_height: int, rotated_width: int, rotated_height: int, degrees: float
-) -> Tuple[int, int]:
-    aspect_ratio = float(original_width) / original_height
-    rotated_aspect_ratio = float(rotated_width) / rotated_height
-    angle = math.fabs(degrees) * math.pi / 180
-
-    if aspect_ratio < 1:
-        total_height = float(original_width) / rotated_aspect_ratio
-    else:
-        total_height = float(original_height)
-
-    h = total_height / (aspect_ratio * math.sin(angle) + math.cos(angle))
-    w = h * aspect_ratio
-
-    return round(w), round(h)
-
-
-async def rotate_image_no_crop(
-        path: str,
-        filename: str,
-        angle: float,
-        dest_path: Optional[str] = None,
-        dest_filename: Optional[str] = None
-):
-    if not dest_path:
-        dest_path = path
-
-    if not dest_filename:
-        dest_filename = filename
-
-    img = Image.open(f"{path}/{filename}")
-    rotated_img = img.rotate(angle, Image.BICUBIC, expand=True)
-
-    check_directories(dest_path)
-    rotated_img.save(f"{dest_path}/{dest_filename}", 'JPEG', quality=100)
-
-
-async def adjust_image(
-        path: str,
-        filename: str,
-        rotate: float,
-        brightness: float,
-        contrast: float,
-        saturation: float,
-        sharpness: float,
-        crop: dict,
-        dest_path: Optional[str] = None,
-        dest_filename: Optional[str] = None
-):
-    if not dest_path:
-        dest_path = path
-
-    if not dest_filename:
-        dest_filename = filename
-
-    img = Image.open(f"{path}/{filename}")
-
-    if rotate:
-        rotated_img = img.rotate(rotate, Image.BICUBIC, expand=True)
-
-        width, height = img.size
-        rotated_width, rotated_height = rotated_img.size
-        new_width, new_height = crop_image_after_rotate(width, height, rotated_width, rotated_height, rotate)
-
-        left = round((rotated_width - new_width) / 2)
-        top = round((rotated_height - new_height) / 2)
-
-        img = rotated_img.crop((left, top, left + new_width, top + new_height))
-
-    adjustments = [
-        (Brightness, brightness),
-        (Contrast, contrast),
-        (Color, saturation),
-        (Sharpness, sharpness)
-    ]
-    for adj, value in adjustments:
-        img = adj(img).enhance(value)
-
-    if crop:
-        w, h = img.size
-        left = crop['left'] * w
-        top = crop['top'] * h
-        width = crop['width'] * w
-        height = crop['height'] * h
-        img = img.crop((left, top, left + width, top + height))
-
-    img.save(f"{dest_path}/{dest_filename}", 'JPEG', quality=100)

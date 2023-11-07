@@ -3,6 +3,7 @@ import strawberry
 from database import models
 from decorators.endpoints import authenticated_user_only
 from database.transaction import get_session
+from decorators.error_logging import error_logging
 from graphql_schema.entities.helpers.combobox import handle_combobox_save
 from graphql_schema.entities.resolvers.base import BaseQueryResolver, BaseMutationResolver
 from graphql_schema.entities.types.types import PointOfInterest
@@ -12,6 +13,7 @@ from graphql_schema.entities.types.mutation_input import CreatePointOfInterestIn
 @strawberry.type
 class PointOfInterestQueries:
     @strawberry.field()
+    @error_logging
     @authenticated_user_only()
     async def points_of_interest(root, info) -> List[PointOfInterest]:
         return await BaseQueryResolver(PointOfInterest, models.PointOfInterest).get_list(info.context.user_id)
@@ -25,6 +27,7 @@ class PointOfInterestQueries:
 @strawberry.type
 class PointOfInterestMutation:
     @strawberry.mutation
+    @error_logging
     @authenticated_user_only()
     async def create_point_of_interest(root, info, input: CreatePointOfInterestInput) -> PointOfInterest:
         input_data = input.to_dict()
@@ -40,6 +43,7 @@ class PointOfInterestMutation:
         )
 
     @strawberry.mutation
+    @error_logging
     @authenticated_user_only()
     async def edit_point_of_interest(root, info, id: int, input: EditPointOfInterestInput) -> PointOfInterest:
         input_data = input.to_dict()
@@ -59,6 +63,7 @@ class PointOfInterestMutation:
             return PointOfInterest(**updated_poi.as_dict())
 
     @strawberry.mutation
+    @error_logging
     @authenticated_user_only()
     async def delete_point_of_interest(self, info, id: int) -> PointOfInterest:
         return await BaseMutationResolver(PointOfInterest, models.PointOfInterest).delete(info.context.user_id, id=id)

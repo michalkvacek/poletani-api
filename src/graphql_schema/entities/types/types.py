@@ -10,7 +10,7 @@ from graphql_schema.dataloaders.multi_models import (
     poi_photos_dataloader, flight_by_poi_dataloader, flight_copilots_dataloader, flight_track_dataloader,
     photos_dataloader, flights_by_aircraft_dataloader, users_in_organization_dataloader,
     aircrafts_from_organization_dataloader, user_organizations_dataloader, flights_by_event_dataloader,
-    flights_by_copilot_dataloader, public_flights_by_event_dataloader
+    flights_by_copilot_dataloader, public_flights_by_event_dataloader, public_flights_by_copilot_dataloader
 )
 from graphql_schema.dataloaders.single_model import (
     poi_dataloader, poi_type_dataloader, event_dataloader, aircraft_dataloader, airport_dataloader, cover_photo_loader,
@@ -145,7 +145,14 @@ class Flight:
 
 @strawberry_sqlalchemy_type(models.Copilot)
 class Copilot:
-    flights: List[Flight] = strawberry.field(resolver=lambda root: flights_by_copilot_dataloader.load(root.id))
+    async def resolve_flights(root, info):
+        dataloader = public_flights_by_copilot_dataloader
+        if info.context.user_id:
+            dataloader = flights_by_event_dataloader
+
+        return await dataloader.load(root.id)
+
+    flights: List[Flight] = strawberry.field(resolver=resolve_flights)
 
 
 @strawberry_sqlalchemy_type(models.Aircraft)

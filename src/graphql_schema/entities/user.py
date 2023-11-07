@@ -4,13 +4,13 @@ from graphql import GraphQLError
 from passlib.hash import bcrypt
 from sqlalchemy import select
 from strawberry.file_uploads import Upload
+from background_jobs.photo import resize_photo
 from database import models
 from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
 from database.transaction import get_session
 from graphql_schema.entities.types.types import User
 from utils.file import delete_file
-from utils.image import resize_image
 from utils.upload import handle_file_upload
 
 
@@ -72,7 +72,7 @@ class EditUserMutation:
 
                 data['avatar_image_filename'] = await handle_file_upload(input.avatar_image, user_image_path)
                 info.context.background_tasks.add_task(
-                    resize_image, path=user_image_path, filename=data['avatar_image_filename'], new_width=400
+                    resize_photo, path=user_image_path, filename=data['avatar_image_filename'], new_width=400
                 )
 
             if input.title_image:
@@ -81,7 +81,7 @@ class EditUserMutation:
 
                 data['title_image_filename'] = await handle_file_upload(input.title_image, user_image_path)
                 info.context.background_tasks.add_task(
-                    resize_image, path=user_image_path, filename=data['title_image_filename'], new_width=800
+                    resize_photo, path=user_image_path, filename=data['title_image_filename'], new_width=800
                 )
 
             if input.old_password and input.new_password:
