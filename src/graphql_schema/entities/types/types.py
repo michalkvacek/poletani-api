@@ -148,7 +148,7 @@ class Copilot:
     async def resolve_flights(root, info):
         dataloader = public_flights_by_copilot_dataloader
         if info.context.user_id:
-            dataloader = flights_by_event_dataloader
+            dataloader = flights_by_copilot_dataloader
 
         return await dataloader.load(root.id)
 

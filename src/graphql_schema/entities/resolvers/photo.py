@@ -115,8 +115,8 @@ class PhotoMutationResolver(BaseMutationResolver):
         photo = await self._get_photo_details(id, user_id)
 
         degrees_map = {
-            "clockwise": -90,
-            "counterClockwise": 90
+            "clockwise": 90,
+            "counterClockwise": -90
         }
 
         # rotate original
