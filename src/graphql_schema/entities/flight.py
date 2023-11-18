@@ -57,26 +57,26 @@ class FlightMutation:
                 )
             )
 
-            data.update({
-                "takeoff_airport_id": takeoff_airport_id,
-                "landing_airport_id": landing_airport_id,
-                "aircraft_id": aircraft_id,
-                "has_terrain_elevation": False,
-                "name": "",
-                "description": ""
-            })
-            flight = await FlightMutationResolver().create(data, info.context.user_id)
+        data.update({
+            "takeoff_airport_id": takeoff_airport_id,
+            "landing_airport_id": landing_airport_id,
+            "aircraft_id": aircraft_id,
+            "has_terrain_elevation": False,
+            "name": "",
+            "description": ""
+        })
+        flight = await FlightMutationResolver().create(data, info.context.user_id)
 
-            info.context.background_tasks.add_task(
-                download_weather,
-                flight_id=flight.id, airport_id=takeoff_airport_id, date_time=flight.takeoff_datetime, type_="takeoff"
-            )
-            info.context.background_tasks.add_task(
-                download_weather,
-                flight_id=flight.id, airport_id=landing_airport_id, date_time=flight.landing_datetime, type_="landing"
-            )
+        info.context.background_tasks.add_task(
+            download_weather,
+            flight_id=flight.id, airport_id=takeoff_airport_id, date_time=flight.takeoff_datetime, type_="takeoff"
+        )
+        info.context.background_tasks.add_task(
+            download_weather,
+            flight_id=flight.id, airport_id=landing_airport_id, date_time=flight.landing_datetime, type_="landing"
+        )
 
-            return flight
+        return flight
 
     @strawberry.mutation
     @error_logging
