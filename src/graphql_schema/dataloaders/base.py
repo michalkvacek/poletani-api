@@ -28,7 +28,7 @@ class SingleModelByIdDataloader(BaseDataloader):
         async with async_session() as session:
             query = (
                 self.query_builder.get_simple_query(extra_select=[self.relationship_column], include_deleted=True)
-                .filter(self.relationship_column.in_(ids))
+                .filter(self.relationship_column.in_(set(ids)))
                 .filter(*self.filters)
             )
 
@@ -63,7 +63,7 @@ class MultiModelsDataloader(BaseDataloader):
                     extra_select=[self.relationship_column],
                     order_by=self.order_by
                 )
-                .filter(self.relationship_column.in_(ids))
+                .filter(self.relationship_column.in_(set(ids)))
                 .filter(*self.filters)
             )
 
