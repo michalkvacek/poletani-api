@@ -1,5 +1,7 @@
 from typing import List
 import strawberry
+from fastapi import HTTPException
+from starlette.status import HTTP_401_UNAUTHORIZED
 from database import models
 from decorators.endpoints import authenticated_user_only
 from database.transaction import get_session
@@ -14,14 +16,24 @@ from graphql_schema.entities.types.mutation_input import CreatePointOfInterestIn
 class PointOfInterestQueries:
     @strawberry.field()
     @error_logging
-    @authenticated_user_only()
-    async def points_of_interest(root, info) -> List[PointOfInterest]:
-        return await BaseQueryResolver(PointOfInterest, models.PointOfInterest).get_list(info.context.user_id)
+    async def points_of_interest(root, info, public: bool = False) -> List[PointOfInterest]:
+        if not info.context.user_id and not public:
+            raise HTTPException(HTTP_401_UNAUTHORIZED)
+
+        return await BaseQueryResolver(PointOfInterest, models.PointOfInterest).get_list(
+            info.context.user_id,
+            only_public=public
+        )
 
     @strawberry.field()
-    @authenticated_user_only()
-    async def point_of_interest(root, info, id: int) -> PointOfInterest:
-        return await BaseQueryResolver(PointOfInterest, models.PointOfInterest).get_one(id, info.context.user_id)
+    async def point_of_interest(root, info, id: int, public: bool = False) -> PointOfInterest:
+        if not info.context.user_id and not public:
+            raise HTTPException(HTTP_401_UNAUTHORIZED)
+
+        return await BaseQueryResolver(PointOfInterest, models.PointOfInterest).get_one(
+            id, info.context.user_id,
+            only_public=public
+        )
 
 
 @strawberry.type

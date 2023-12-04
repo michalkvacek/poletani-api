@@ -10,12 +10,12 @@ from graphql_schema.dataloaders.multi_models import (
     poi_photos_dataloader, flight_by_poi_dataloader, flight_copilots_dataloader, flight_track_dataloader,
     photos_dataloader, flights_by_aircraft_dataloader, users_in_organization_dataloader,
     aircrafts_from_organization_dataloader, user_organizations_dataloader, flights_by_event_dataloader,
-    flights_by_copilot_dataloader, public_flights_by_event_dataloader, public_flights_by_copilot_dataloader
+    flights_by_copilot_dataloader, public_flights_by_event_dataloader, public_flights_by_copilot_dataloader, photo_copilots_dataloader, photos_aircraft_dataloader, copilots_in_photo_dataloader
 )
 from graphql_schema.dataloaders.single_model import (
-    poi_dataloader, poi_type_dataloader, event_dataloader, aircraft_dataloader, airport_dataloader, cover_photo_loader,
+    poi_dataloader, poi_type_dataloader, event_dataloader, aircraft_dataloader, airport_dataloader,
     airport_weather_info_loader, organizations_dataloader, flight_dataloader, photo_adjustment_dataloader,
-    photo_dataloader
+    photo_dataloader, user_dataloader
 )
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
 from paths import (
@@ -76,6 +76,7 @@ class PointOfInterest:
     type: Optional[PointOfInterestType] = strawberry.field(resolver=lambda root: poi_type_dataloader.load(root.type_id))
     photos: List[Photo] = strawberry.field(resolver=lambda root: poi_photos_dataloader.load(root.id))
     flights: List[Flight] = strawberry.field(resolver=lambda root: flight_by_poi_dataloader.load(root.id))
+    title_photo: Optional[Photo] = strawberry.field(resolver=lambda root: photo_dataloader.load(root.title_photo_id))
 
 
 @strawberry_sqlalchemy_type(models.Photo)
@@ -85,6 +86,8 @@ class Photo:
     point_of_interest: Optional[PointOfInterest] = strawberry.field(
         resolver=lambda root: poi_dataloader.load(root.point_of_interest_id)
     )
+    copilots: List[Copilot] = strawberry.field(resolver=lambda root: copilots_in_photo_dataloader.load(root.id))
+    is_aircraft: bool = strawberry.field(resolver=lambda root: bool(root.aircraft_id))
     flight: Flight = strawberry.field(resolver=lambda root: flight_dataloader.load(root.flight_id))
     adjustment: Optional[PhotoAdjustment] = strawberry.field(
         resolver=lambda root: photo_adjustment_dataloader.load(root.id)
@@ -123,12 +126,13 @@ class Flight:
     async def load_event(root):
         return await event_dataloader.load(root.event_id)
 
+    pilot: User = strawberry.field(resolver=lambda root: user_dataloader.load(root.created_by_id))
     copilots: Optional[List[Copilot]] = strawberry.field(resolver=load_copilots)
     event: Optional[Event] = strawberry.field(resolver=load_event)
     aircraft: Aircraft = strawberry.field(resolver=lambda root: aircraft_dataloader.load(root.aircraft_id))
     takeoff_airport: Airport = strawberry.field(resolver=lambda root: airport_dataloader.load(root.takeoff_airport_id))
     landing_airport: Airport = strawberry.field(resolver=lambda root: airport_dataloader.load(root.landing_airport_id))
-    cover_photo: Optional[Photo] = strawberry.field(resolver=lambda root: cover_photo_loader.load(root.id))
+    title_photo: Optional[Photo] = strawberry.field(resolver=lambda root: photo_dataloader.load(root.title_photo_id))
     track: List[FlightTrack] = strawberry.field(resolver=lambda root: flight_track_dataloader.load(root.id))
     takeoff_weather_info: Optional[WeatherInfo] = strawberry.field(
         resolver=lambda root: airport_weather_info_loader.load(root.takeoff_weather_info_id)
@@ -153,17 +157,21 @@ class Copilot:
         return await dataloader.load(root.id)
 
     flights: List[Flight] = strawberry.field(resolver=resolve_flights)
+    photos: List[Photo] = strawberry.field(resolver=lambda root: photo_copilots_dataloader.load(root.id))
+    title_photo: Optional[Photo] = strawberry.field(resolver=lambda root: photo_dataloader.load(root.title_photo_id))
 
 
 @strawberry_sqlalchemy_type(models.Aircraft)
 class Aircraft:
-    photo_url: Optional[str] = strawberry.field(
-        resolver=lambda root: get_public_url(f"aircrafts/{root.photo_filename}") if root.photo_filename else None
-    )
+    # photo_url: Optional[str] = strawberry.field(
+    #     resolver=lambda root: get_public_url(f"aircrafts/{root.photo_filename}") if root.photo_filename else None
+    # )
     flights: List[Flight] = strawberry.field(resolver=lambda root: flights_by_aircraft_dataloader.load(root.id))
     organization: Optional[Organization] = strawberry.field(
         resolver=lambda root: organizations_dataloader.load(root.organization_id)
     )
+    photos: List[Photo] = strawberry.field(resolver=lambda root: photos_aircraft_dataloader.load(root.id))
+    title_photo: Optional[Photo] = strawberry.field(resolver=lambda root: photo_dataloader.load(root.title_photo_id))
 
 
 @strawberry_sqlalchemy_type(models.Organization)

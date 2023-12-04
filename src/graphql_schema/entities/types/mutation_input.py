@@ -29,7 +29,7 @@ class CreatePointOfInterestInput(BaseGraphqlInputType):
     type: Optional[ComboboxInput] = None
 
 
-@strawberry_sqlalchemy_input(models.PointOfInterest, exclude_fields=['id', 'type_id'])
+@strawberry_sqlalchemy_input(models.PointOfInterest, exclude_fields=['id', 'type_id'], all_optional=True)
 class EditPointOfInterestInput(BaseGraphqlInputType):
     type: Optional[ComboboxInput] = None
 
@@ -68,11 +68,12 @@ class EditPhotoInput:
     name: Optional[str] = None
     description: Optional[str] = None
     point_of_interest: Optional[ComboboxInput] = None
-    is_flight_cover: Optional[bool] = None
+    is_aircraft: Optional[bool] = None
+    copilots: Optional[List[ComboboxInput]] = None
 
     def to_dict(self):
         return {
-            key: getattr(self, key) for key in ('name', 'description', 'is_flight_cover')
+            key: getattr(self, key) for key in ('name', 'description')
             if getattr(self, key) is not None
         }
 
@@ -128,11 +129,9 @@ class TrackItemInput:
 
 @strawberry_sqlalchemy_input(models.Aircraft, exclude_fields=['id', 'photo_filename'])
 class CreateAircraftInput(BaseGraphqlInputType):
-    photo: Optional[Upload]
     organization: Optional[ComboboxInput] = None
 
 
-@strawberry_sqlalchemy_input(models.Aircraft, exclude_fields=['photo_filename'])
+@strawberry_sqlalchemy_input(models.Aircraft, exclude_fields=['photo_filename'], all_optional=True)
 class EditAircraftInput(BaseGraphqlInputType):
-    photo: Optional[Upload]
     organization: Optional[ComboboxInput] = None

@@ -48,9 +48,6 @@ class AircraftMutationResolver(BaseMutationResolver):
 
     async def create_new(self, data: CreateAircraftInput, user_id: int) -> Aircraft:
         input_data = data.to_dict()
-        if data.photo:
-            input_data['photo_filename'] = await handle_file_upload(data.photo, AIRCRAFT_UPLOAD_DEST_PATH)
-
         if data.organization:
             async with get_session() as db:
                 input_data['organization_id'] = await handle_combobox_save(
@@ -64,13 +61,6 @@ class AircraftMutationResolver(BaseMutationResolver):
 
     async def edit(self, id: int, user_id: int, data: EditAircraftInput) -> Aircraft:
         update_data = data.to_dict()
-        aircraft = await AircraftQueryResolver().get_one(id, user_id)
-
-        if data.photo:
-            if aircraft.photo_filename:
-                delete_file(AIRCRAFT_UPLOAD_DEST_PATH + "/" + aircraft.photo_filename, silent=True)
-            update_data['photo_filename'] = await handle_file_upload(data.photo, AIRCRAFT_UPLOAD_DEST_PATH)
-
         async with get_session() as db:
             if data.organization:
                 update_data['organization_id'] = await handle_combobox_save(

@@ -21,7 +21,7 @@ services:
       TZ: "Europe/Prague"
       API_URL: "http://localhost:8000"
       APP_ENV: "development"
-      ALLOW_CORS_ORIGINS: "http://localhost:9000 http://localhost:9001 http://localhost:3000"
+      ALLOW_CORS_ORIGINS: "http://localhost:9000 http://localhost:9001 http://localhost:9101 http://localhost:3000"
       SENTRY_DSN: "https://184d1d6bd39f4fbb94804ae84e9afdd5@o472821.ingest.sentry.io/5506983"
 
 

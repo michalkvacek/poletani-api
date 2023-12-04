@@ -1,10 +1,10 @@
-from typing import List
+from typing import List, Optional
 import strawberry
 from database import models
 from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
 from graphql_schema.entities.resolvers.base import BaseQueryResolver
-from graphql_schema.entities.resolvers.photo import PhotoMutationResolver
+from graphql_schema.entities.resolvers.photo import PhotoMutationResolver, PhotoQueryResolver
 from graphql_schema.entities.types.types import Photo
 from graphql_schema.entities.types.mutation_input import EditPhotoInput, UploadPhotoInput, AdjustmentInput
 
@@ -13,8 +13,22 @@ from graphql_schema.entities.types.mutation_input import EditPhotoInput, UploadP
 class PhotoQueries:
     @strawberry.field()
     @error_logging
-    async def photos(root, info) -> List[Photo]:
-        return await BaseQueryResolver(Photo, models.Photo).get_list(user_id=info.context.user_id)
+    async def photos(
+            root, info,
+            flight_id: Optional[int] = None,
+            copilot_id: Optional[int] = None,
+            point_of_interest_id: Optional[int] = None,
+            aircraft_id: Optional[int] = None,
+            public: Optional[bool] = False,
+    ) -> List[Photo]:
+        return await PhotoQueryResolver().get_list(
+            public=public,
+            flight_id=flight_id,
+            user_id=info.context.user_id,
+            copilot_id=copilot_id,
+            aircraft_id=aircraft_id,
+            point_of_interest_id=point_of_interest_id,
+        )
 
     @strawberry.field()
     @error_logging

@@ -9,6 +9,7 @@ def create_dataloader(model: Type[models.BaseModel], relationship_column=None, f
     return DataLoader(load_fn=loader, cache=False)
 
 
+user_dataloader = create_dataloader(models.User)
 airport_dataloader = create_dataloader(models.Airport)
 aircraft_dataloader = create_dataloader(models.Aircraft)
 event_dataloader = create_dataloader(models.Event)
@@ -18,12 +19,6 @@ poi_dataloader = create_dataloader(models.PointOfInterest)
 poi_type_dataloader = create_dataloader(models.PointOfInterestType)
 flight_dataloader = create_dataloader(models.Flight)
 photo_adjustment_dataloader = create_dataloader(
-    models.PhotoAdjustment,
-    relationship_column=models.PhotoAdjustment.photo_id
+    models.PhotoAdjustment, relationship_column=models.PhotoAdjustment.photo_id
 )
 photo_dataloader = create_dataloader(models.Photo)
-cover_photo_loader = create_dataloader(
-    models.Photo,
-    relationship_column=models.Photo.flight_id,
-    filters=[models.Photo.is_flight_cover.is_(True)]
-)

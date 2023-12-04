@@ -1,21 +1,56 @@
 import os
 import shutil
+from typing import Type, Optional, List
+
 from PIL import Image
 from pydantic import BaseModel
-from sqlalchemy import update, delete
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select, delete, insert
 from background_jobs.elevation import add_terrain_elevation_to_photo
 from background_jobs.photo import generate_thumbnail, resize_photo
 from database import models
 from database.transaction import get_session
 from graphql_schema.entities.helpers.combobox import handle_combobox_save
-from graphql_schema.entities.resolvers.base import BaseMutationResolver
+from graphql_schema.entities.resolvers.base import BaseMutationResolver, BaseQueryResolver, GQL_TYPE
 from graphql_schema.entities.types.mutation_input import EditPhotoInput, UploadPhotoInput, AdjustmentInput
 from graphql_schema.entities.types.types import Photo
 from paths import get_photo_basepath
 from utils.file import delete_file
 from utils.image import PhotoEditor, parse_exif_info
 from utils.upload import handle_file_upload
+
+
+class PhotoQueryResolver(BaseQueryResolver):
+
+    def __init__(self):
+        super().__init__(Photo, models.Photo)
+
+    def get_query(
+            self,
+            user_id: Optional[int] = None,
+            object_id: Optional[int] = None,
+            order_by: Optional[list] = None,
+            only_public: Optional[bool] = False,
+            *args, **kwargs
+    ):
+        query = super().get_query(
+            user_id, object_id, order_by,
+            aircraft_id=kwargs.get("aircraft_id"),
+            point_of_interest_id=kwargs.get("point_of_interest_id")
+        )
+
+        if kwargs.get("public"):
+            query = (
+                query.join(models.Flight, onclause=models.Photo.flight_id == models.Flight.id)
+                .filter(models.Flight.is_public.is_(True))
+            )
+
+        if kwargs.get("copilot_id"):
+            query = (
+                query.join(models.copilot_has_photo, )
+                .filter(models.copilot_has_photo.c.copilot_id == kwargs['copilot_id'])
+            )
+
+        return query
 
 
 class PhotoDetailInfo(BaseModel):
@@ -28,15 +63,6 @@ class PhotoDetailInfo(BaseModel):
 class PhotoMutationResolver(BaseMutationResolver):
     def __init__(self):
         super().__init__(Photo, models.Photo)
-
-    @staticmethod
-    async def _reset_flight_cover(db: AsyncSession, flight_id: int, ignored_photo_id: int):
-        (await db.execute(
-            update(models.Photo)
-            .filter(models.Photo.flight_id == flight_id)
-            .filter(models.Photo.id != ignored_photo_id)
-            .values(is_flight_cover=False))
-         )
 
     @staticmethod
     def _copy_original(path: str, filename: str):
@@ -105,9 +131,14 @@ class PhotoMutationResolver(BaseMutationResolver):
                     extra_data={"description": ""}
                 )
 
-            if input.is_flight_cover:
-                # reset other covers
-                await self._reset_flight_cover(db, photo.flight_id, id)
+            if input.is_aircraft:
+                flight = (await db.scalars(select(models.Flight).filter(models.Flight.id == photo.flight_id))).one()
+                data['aircraft_id'] = flight.aircraft_id
+
+            if input.copilots is not None:
+                await db.execute(delete(models.copilot_has_photo).filter_by(photo_id=id))
+                for copilot in input.copilots:
+                    await db.execute(insert(models.copilot_has_photo).values(photo_id=id, copilot_id=copilot.id))
 
             return await self._do_update(db, obj=photo, data=data)
 

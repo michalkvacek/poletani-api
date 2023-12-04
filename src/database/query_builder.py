@@ -23,12 +23,7 @@ class QueryBuilder:
             query = query.filter(self.model.deleted.is_(False))
 
         if hasattr(self.model, "created_by_id") and created_by_id:
-            ownership = [self.model.created_by_id == created_by_id]
-
-            if hasattr(self.model, "is_public"):
-                ownership.append(self.model.is_public.is_(True))
-
-            query = query.filter(or_(*ownership))
+            query = query.filter(self.model.created_by_id == created_by_id)
 
         if order_by:
             query = query.order_by(*order_by)

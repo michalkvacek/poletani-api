@@ -1,5 +1,8 @@
-from typing import List
+from typing import List, Optional
 import strawberry
+from fastapi import HTTPException
+from starlette.status import HTTP_401_UNAUTHORIZED
+
 from decorators.endpoints import authenticated_user_only
 from decorators.error_logging import error_logging
 from .resolvers.aircraft import AircraftMutationResolver, AircraftQueryResolver
@@ -20,10 +23,12 @@ class AircraftQueries:
 
     @strawberry.field()
     @error_logging
-    @authenticated_user_only()
-    async def aircraft(root, info, id: int) -> Aircraft:
+    async def aircraft(root, info, id: int, public: Optional[bool] = False) -> Aircraft:
+        if not info.context.user_id and not public:
+            raise HTTPException(HTTP_401_UNAUTHORIZED)
+
         return await AircraftQueryResolver().get_one(
-            id, user_id=info.context.user_id, organization_ids=info.context.organization_ids
+            id, user_id=info.context.user_id, organization_ids=info.context.organization_ids, public=public
         )
 
 

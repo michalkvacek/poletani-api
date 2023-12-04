@@ -19,19 +19,34 @@ class FlightQueries:
 
     @strawberry.field()
     @error_logging
-    async def flights(root, info, username: Optional[str] = None) -> List[Flight]:
-        if not info.context.user_id and not username:
+    async def flights(
+            root, info,
+            username: Optional[str] = None,
+            public: Optional[bool] = False,
+            copilot_id: Optional[int] = None,
+            point_of_interest_id: Optional[int] = None,
+            aircraft_id: Optional[int] = None,
+    ) -> List[Flight]:
+        if not info.context.user_id and not public:
             raise HTTPException(HTTP_401_UNAUTHORIZED)
 
-        return await FlightQueryResolver().get_list(user_id=info.context.user_id, username=username)
+        return await FlightQueryResolver().get_list(
+            user_id=info.context.user_id,
+            username=username,
+            only_public=public,
+            copilot_id=copilot_id,
+            aircraft_id=aircraft_id,
+            point_of_interest_id=point_of_interest_id
+
+        )
 
     @strawberry.field()
     @error_logging
-    async def flight(root, info, id: int, username: Optional[str] = None) -> Flight:
-        if not info.context.user_id and not username:
+    async def flight(root, info, id: int, username: Optional[str] = None, public: Optional[bool] = False) -> Flight:
+        if not info.context.user_id and not public:
             raise HTTPException(HTTP_401_UNAUTHORIZED)
 
-        return await FlightQueryResolver().get_one(id, user_id=info.context.user_id, username=username)
+        return await FlightQueryResolver().get_one(id, user_id=info.context.user_id, username=username, public=public)
 
 
 @strawberry.type

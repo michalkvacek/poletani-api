@@ -46,6 +46,9 @@ class BaseQueryResolver(BaseResolver):
         if only_public and hasattr(self.model, "is_public"):
             query = query.filter(self.model.is_public.is_(True))
 
+        if kwargs:
+            query = query.filter_by(**kwargs)
+
         return query
 
     async def get_list(self, user_id: Optional[int] = None, **kwargs) -> List[GQL_TYPE]:

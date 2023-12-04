@@ -16,12 +16,13 @@ class CopilotQueryResolver(BaseQueryResolver):
             only_public: Optional[bool] = False,
             *args, **kwargs
     ):
+        pilot_username = kwargs.pop("pilot_username", None)
         query = super().get_query(user_id, object_id, order_by, only_public, *args, **kwargs)
 
-        if kwargs.get("pilot_username"):
+        if pilot_username:
             query = (
                 query.join(models.Copilot.created_by)
-                .filter(models.User.public_username == kwargs['pilot_username'])
+                .filter(models.User.public_username == pilot_username)
             )
 
         return query

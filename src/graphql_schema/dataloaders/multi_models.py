@@ -110,3 +110,32 @@ flight_track_dataloader = DataLoader(
     ).load,
     cache=False
 )
+
+copilots_in_photo_dataloader = DataLoader(
+    load_fn=MultiModelsDataloader(
+        models.Copilot,
+        relationship_column=models.copilot_has_photo.c.photo_id,
+        extra_join=[models.copilot_has_photo],
+        order_by=[models.Copilot.name]
+    ).load,
+    cache=False
+)
+
+photo_copilots_dataloader = DataLoader(
+    load_fn=MultiModelsDataloader(
+        models.Photo,
+        relationship_column=models.copilot_has_photo.c.copilot_id,
+        extra_join=[models.copilot_has_photo],
+        order_by=[models.Photo.exposed_at]
+    ).load,
+    cache=False
+)
+
+photos_aircraft_dataloader = DataLoader(
+    load_fn=MultiModelsDataloader(
+        models.Photo,
+        relationship_column=models.Photo.aircraft_id,
+        order_by=[models.Photo.exposed_at]
+    ).load,
+    cache=False
+)

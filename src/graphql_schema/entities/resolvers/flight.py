@@ -21,17 +21,38 @@ class FlightQueryResolver(BaseQueryResolver):
     def __init__(self):
         super().__init__(graphql_type=Flight, model=models.Flight)
 
-    def get_query(self, user_id: int, object_id: Optional[int] = None, *args, **kwargs):
+    def get_query(
+            self,
+            user_id: Optional[int] = None,
+            object_id: Optional[int] = None,
+            only_public: Optional[bool] = False,
+            *args,
+            **kwargs
+    ):
         query = super().get_query(
             user_id, object_id,
             order_by=[models.Flight.takeoff_datetime.desc()],
-            only_public=not bool(user_id)
+            only_public=only_public
         )
+
+        if kwargs.get("aircraft_id"):
+            query = query.filter(models.Flight.aircraft_id == kwargs['aircraft_id'])
+
+        if kwargs.get("copilot_id"):
+            query = (
+                query.join(models.flight_has_copilot)
+                .filter(models.flight_has_copilot.c.copilot_id == kwargs['copilot_id'])
+            )
+
+        if kwargs.get("point_of_interest_id"):
+            query = (
+                query.join(models.Flight.track)
+                .filter(models.FlightTrack.point_of_interest_id == kwargs["point_of_interest_id"])
+            )
 
         if kwargs.get('username'):
             query = (
-                query
-                .join(models.Flight.created_by)
+                query.join(models.Flight.created_by)
                 .filter(models.User.public_username == kwargs['username'])
             )
 
