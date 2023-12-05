@@ -36,15 +36,12 @@ class BaseQueryResolver(BaseResolver):
             *args,
             **kwargs,
     ):
-        query = self.query_builder.get_simple_query(created_by_id=user_id, order_by=order_by)
+        query = self.query_builder.get_simple_query(created_by_id=user_id, order_by=order_by, only_public=only_public)
 
         if object_id:
             if not hasattr(self.model, "id"):
                 raise AssertionError(f"Model {self.model} has no ID column! Cannot query by ID!")
             query = query.filter(self.model.id == object_id)
-
-        if only_public and hasattr(self.model, "is_public"):
-            query = query.filter(self.model.is_public.is_(True))
 
         if kwargs:
             query = query.filter_by(**kwargs)

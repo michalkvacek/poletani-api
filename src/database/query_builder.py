@@ -12,6 +12,7 @@ class QueryBuilder:
             extra_select: Optional[list] = None,
             created_by_id: Optional[int] = None,
             order_by: Optional[list] = None,
+            only_public: Optional[bool] = False,
             include_deleted: bool = False
     ):
         if not extra_select:
@@ -22,7 +23,9 @@ class QueryBuilder:
         if not include_deleted and hasattr(self.model, "deleted"):
             query = query.filter(self.model.deleted.is_(False))
 
-        if hasattr(self.model, "created_by_id") and created_by_id:
+        if only_public and hasattr(self.model, "is_public"):
+            query = query.filter(self.model.is_public.is_(True))
+        elif hasattr(self.model, "created_by_id") and created_by_id:
             query = query.filter(self.model.created_by_id == created_by_id)
 
         if order_by:
