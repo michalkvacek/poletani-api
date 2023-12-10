@@ -26,7 +26,10 @@ class QueryBuilder:
         if only_public and hasattr(self.model, "is_public"):
             query = query.filter(self.model.is_public.is_(True))
         elif hasattr(self.model, "created_by_id") and created_by_id:
-            query = query.filter(self.model.created_by_id == created_by_id)
+            query = query.filter(or_(
+                self.model.created_by_id.is_(None),
+                self.model.created_by_id == created_by_id
+            ))
 
         if order_by:
             query = query.order_by(*order_by)

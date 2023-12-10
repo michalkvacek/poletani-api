@@ -32,10 +32,14 @@ class PhotoQueryResolver(BaseQueryResolver):
             only_public: Optional[bool] = False,
             *args, **kwargs
     ):
+
         query = super().get_query(
             user_id, object_id, order_by,
-            aircraft_id=kwargs.get("aircraft_id"),
-            point_of_interest_id=kwargs.get("point_of_interest_id")
+            **{
+                field: kwargs[field]
+                for field in ("aircraft_id", "point_of_interest_id", "flight_id")
+                if kwargs.get(field)
+            }
         )
 
         if kwargs.get("public"):
@@ -46,7 +50,7 @@ class PhotoQueryResolver(BaseQueryResolver):
 
         if kwargs.get("copilot_id"):
             query = (
-                query.join(models.copilot_has_photo, )
+                query.join(models.copilot_has_photo)
                 .filter(models.copilot_has_photo.c.copilot_id == kwargs['copilot_id'])
             )
 
@@ -130,10 +134,6 @@ class PhotoMutationResolver(BaseMutationResolver):
                     user_id,
                     extra_data={"description": ""}
                 )
-
-            if input.is_aircraft:
-                flight = (await db.scalars(select(models.Flight).filter(models.Flight.id == photo.flight_id))).one()
-                data['aircraft_id'] = flight.aircraft_id
 
             if input.copilots is not None:
                 await db.execute(delete(models.copilot_has_photo).filter_by(photo_id=id))

@@ -2,7 +2,6 @@ from strawberry.dataloader import DataLoader
 from database import models
 from graphql_schema.dataloaders.base import MultiModelsDataloader
 
-
 aircrafts_from_organization_dataloader = DataLoader(
     load_fn=MultiModelsDataloader(
         models.Aircraft,
@@ -43,14 +42,17 @@ public_flights_by_copilot_dataloader = DataLoader(
 flights_by_aircraft_dataloader = DataLoader(
     load_fn=MultiModelsDataloader(
         models.Flight,
-        relationship_column=models.Flight.aircraft_id
+        relationship_column=models.Flight.aircraft_id,
+        order_by=[models.Flight.takeoff_datetime.desc()]
     ).load, cache=False)
 
 flight_by_poi_dataloader = DataLoader(
     load_fn=MultiModelsDataloader(
         models.Flight,
         relationship_column=models.PointOfInterest.id,
-        extra_join=[models.Flight.track, models.PointOfInterest]).load,
+        order_by=[models.Flight.takeoff_datetime.desc()],
+        extra_join=[models.Flight.track, models.PointOfInterest]
+    ).load,
     cache=False
 )
 
@@ -58,7 +60,9 @@ flights_by_event_dataloader = DataLoader(
     load_fn=MultiModelsDataloader(
         models.Flight,
         relationship_column=models.Event.id,
-        extra_join=[models.Flight.event]).load,
+        extra_join=[models.Flight.event],
+        order_by=[models.Flight.takeoff_datetime.desc()]
+    ).load,
     cache=False
 )
 
@@ -67,7 +71,9 @@ public_flights_by_event_dataloader = DataLoader(
         models.Flight,
         relationship_column=models.Event.id,
         filters=[models.Flight.is_public.is_(True)],
-        extra_join=[models.Flight.event]).load,
+        order_by=[models.Flight.takeoff_datetime.desc()],
+        extra_join=[models.Flight.event]
+    ).load,
     cache=False
 )
 

@@ -19,7 +19,7 @@ class CreateCopilotInput(BaseGraphqlInputType):
     pass
 
 
-@strawberry_sqlalchemy_input(model=models.Copilot, exclude_fields=["id"])
+@strawberry_sqlalchemy_input(model=models.Copilot, exclude_fields=["id"], all_optional=True)
 class EditCopilotInput(BaseGraphqlInputType):
     pass
 
@@ -68,12 +68,12 @@ class EditPhotoInput:
     name: Optional[str] = None
     description: Optional[str] = None
     point_of_interest: Optional[ComboboxInput] = None
-    is_aircraft: Optional[bool] = None
     copilots: Optional[List[ComboboxInput]] = None
+    aircraft_id: Optional[int] = None
 
     def to_dict(self):
         return {
-            key: getattr(self, key) for key in ('name', 'description')
+            key: getattr(self, key) for key in ('name', 'description', 'aircraft_id')
             if getattr(self, key) is not None
         }
 

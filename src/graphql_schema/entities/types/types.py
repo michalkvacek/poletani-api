@@ -87,7 +87,6 @@ class Photo:
         resolver=lambda root: poi_dataloader.load(root.point_of_interest_id)
     )
     copilots: List[Copilot] = strawberry.field(resolver=lambda root: copilots_in_photo_dataloader.load(root.id))
-    is_aircraft: bool = strawberry.field(resolver=lambda root: bool(root.aircraft_id))
     flight: Flight = strawberry.field(resolver=lambda root: flight_dataloader.load(root.flight_id))
     adjustment: Optional[PhotoAdjustment] = strawberry.field(
         resolver=lambda root: photo_adjustment_dataloader.load(root.id)
@@ -163,9 +162,6 @@ class Copilot:
 
 @strawberry_sqlalchemy_type(models.Aircraft)
 class Aircraft:
-    # photo_url: Optional[str] = strawberry.field(
-    #     resolver=lambda root: get_public_url(f"aircrafts/{root.photo_filename}") if root.photo_filename else None
-    # )
     flights: List[Flight] = strawberry.field(resolver=lambda root: flights_by_aircraft_dataloader.load(root.id))
     organization: Optional[Organization] = strawberry.field(
         resolver=lambda root: organizations_dataloader.load(root.organization_id)
