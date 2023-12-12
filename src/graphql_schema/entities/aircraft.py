@@ -1,10 +1,8 @@
-from typing import List, Optional
+from typing import Optional
 import strawberry
-from fastapi import HTTPException
-from starlette.status import HTTP_401_UNAUTHORIZED
-
-from decorators.endpoints import authenticated_user_only
+from decorators.endpoints import authenticated_user_only, allow_public
 from decorators.error_logging import error_logging
+from .helpers.pagination import get_pagination_window, PaginationWindow
 from .resolvers.aircraft import AircraftMutationResolver, AircraftQueryResolver
 from graphql_schema.entities.types.mutation_input import CreateAircraftInput, EditAircraftInput
 from graphql_schema.entities.types.types import Aircraft
@@ -15,20 +13,28 @@ class AircraftQueries:
     @strawberry.field()
     @error_logging
     @authenticated_user_only()
-    async def aircrafts(root, info) -> List[Aircraft]:
-        return await AircraftQueryResolver().get_list(
+    async def aircrafts(root, info, limit: int, offset: int = 0) -> PaginationWindow[Aircraft]:
+        query = AircraftQueryResolver().get_query(
             info.context.user_id,
             organization_ids=info.context.organization_ids
         )
 
+        return await get_pagination_window(
+            query=query,
+            item_type=Aircraft,
+            limit=limit,
+            offset=offset
+        )
+
     @strawberry.field()
     @error_logging
+    @allow_public
     async def aircraft(root, info, id: int, public: Optional[bool] = False) -> Aircraft:
-        if not info.context.user_id and not public:
-            raise HTTPException(HTTP_401_UNAUTHORIZED)
-
         return await AircraftQueryResolver().get_one(
-            id, user_id=info.context.user_id, organization_ids=info.context.organization_ids, public=public
+            id,
+            user_id=info.context.user_id,
+            organization_ids=info.context.organization_ids,
+            public=public
         )
 
 

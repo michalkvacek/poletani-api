@@ -3,7 +3,6 @@ import os
 APP_DEBUG = True
 GRAPHIQL = True
 
-ACCESS_TOKEN_VALIDITY_MINUTES = 20
 REFRESH_TOKEN_VALIDITY_DAYS = 30
 
 API_URL = os.environ.get("API_URL") or "http://localhost:8000"

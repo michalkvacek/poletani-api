@@ -1,16 +1,15 @@
 import os
 import shutil
-from typing import Type, Optional, List
-
+from typing import Optional
 from PIL import Image
 from pydantic import BaseModel
-from sqlalchemy import select, delete, insert
+from sqlalchemy import delete, insert
 from background_jobs.elevation import add_terrain_elevation_to_photo
 from background_jobs.photo import generate_thumbnail, resize_photo
 from database import models
 from database.transaction import get_session
 from graphql_schema.entities.helpers.combobox import handle_combobox_save
-from graphql_schema.entities.resolvers.base import BaseMutationResolver, BaseQueryResolver, GQL_TYPE
+from graphql_schema.entities.resolvers.base import BaseMutationResolver, BaseQueryResolver
 from graphql_schema.entities.types.mutation_input import EditPhotoInput, UploadPhotoInput, AdjustmentInput
 from graphql_schema.entities.types.types import Photo
 from paths import get_photo_basepath

@@ -1,10 +1,9 @@
 from typing import List, Optional
 import strawberry
-from fastapi import HTTPException
-from starlette.status import HTTP_401_UNAUTHORIZED
 from database import models
-from decorators.endpoints import authenticated_user_only
+from decorators.endpoints import authenticated_user_only, allow_public
 from decorators.error_logging import error_logging
+from graphql_schema.entities.helpers.pagination import PaginationWindow, get_pagination_window
 from graphql_schema.entities.resolvers.base import BaseMutationResolver
 from graphql_schema.entities.resolvers.event import EventQueryResolver
 from graphql_schema.entities.types.mutation_input import CreateEventInput, EditEventInput
@@ -15,25 +14,37 @@ from graphql_schema.entities.types.types import Event
 class EventQueries:
     @strawberry.field()
     @error_logging
-    async def events(root, info, username: Optional[str] = None) -> List[Event]:
-        if not info.context.user_id and not username:
-            raise HTTPException(HTTP_401_UNAUTHORIZED)
-
-        return await EventQueryResolver().get_list(
+    @allow_public
+    async def events(
+            root,
+            info,
+            limit: int,
+            offset: int = 0,
+            username: Optional[str] = None,
+            public: Optional[bool] = False,
+    ) -> PaginationWindow[Event]:
+        query = EventQueryResolver().get_query(
             info.context.user_id,
             username=username,
-            order_by=[models.Event.date_from.desc(), models.Event.id.desc()]
+            order_by=[models.Event.date_from.desc(), models.Event.id.desc()],
+            public=public
+        )
+
+        return await get_pagination_window(
+            query=query,
+            item_type=Event,
+            limit=limit,
+            offset=offset
         )
 
     @strawberry.field()
     @error_logging
-    async def event(root, info, id: int, username: Optional[str] = None) -> Event:
-        if not info.context.user_id and not username:
-            raise HTTPException(HTTP_401_UNAUTHORIZED)
-
+    @allow_public
+    async def event(root, info, id: int, username: Optional[str] = None, public: Optional[bool] = False) -> Event:
         return await EventQueryResolver().get_one(
             id,
             username=username,
+            public=public,
             user_id=info.context.user_id
         )
 

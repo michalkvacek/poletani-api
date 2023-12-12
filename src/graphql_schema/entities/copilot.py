@@ -1,11 +1,9 @@
 from typing import List, Optional
 import strawberry
-from fastapi import HTTPException
-from starlette.status import HTTP_401_UNAUTHORIZED
 from strawberry.types import Info
 from database import models
 from decorators.error_logging import error_logging
-from decorators.endpoints import authenticated_user_only
+from decorators.endpoints import authenticated_user_only, allow_public
 from graphql_schema.entities.resolvers.base import BaseMutationResolver
 from graphql_schema.entities.resolvers.copilot import CopilotQueryResolver
 from graphql_schema.entities.types.mutation_input import CreateCopilotInput, EditCopilotInput
@@ -22,10 +20,8 @@ class CopilotQueries:
 
     @strawberry.field()
     @error_logging
+    @allow_public
     async def copilot(root, info: Info, id: int, pilot_username: Optional[str] = None) -> Copilot:
-        if not info.context.user_id and not pilot_username:
-            raise HTTPException(HTTP_401_UNAUTHORIZED)
-
         return await CopilotQueryResolver().get_one(
             id,
             user_id=info.context.user_id,

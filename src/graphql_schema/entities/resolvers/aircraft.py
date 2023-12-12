@@ -6,9 +6,6 @@ from graphql_schema.entities.helpers.combobox import handle_combobox_save
 from graphql_schema.entities.resolvers.base import BaseMutationResolver, BaseQueryResolver
 from graphql_schema.entities.types.mutation_input import EditAircraftInput, CreateAircraftInput
 from graphql_schema.entities.types.types import Aircraft
-from paths import AIRCRAFT_UPLOAD_DEST_PATH
-from utils.file import delete_file
-from utils.upload import handle_file_upload
 
 
 class AircraftQueryResolver(BaseQueryResolver):

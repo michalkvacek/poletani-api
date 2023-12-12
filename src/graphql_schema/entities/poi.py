@@ -1,12 +1,11 @@
 from typing import List
 import strawberry
-from fastapi import HTTPException
-from starlette.status import HTTP_401_UNAUTHORIZED
 from database import models
-from decorators.endpoints import authenticated_user_only
+from decorators.endpoints import authenticated_user_only, allow_public
 from database.transaction import get_session
 from decorators.error_logging import error_logging
 from graphql_schema.entities.helpers.combobox import handle_combobox_save
+from graphql_schema.entities.helpers.pagination import get_pagination_window, PaginationWindow
 from graphql_schema.entities.resolvers.base import BaseQueryResolver, BaseMutationResolver
 from graphql_schema.entities.types.types import PointOfInterest
 from graphql_schema.entities.types.mutation_input import CreatePointOfInterestInput, EditPointOfInterestInput
@@ -16,20 +15,25 @@ from graphql_schema.entities.types.mutation_input import CreatePointOfInterestIn
 class PointOfInterestQueries:
     @strawberry.field()
     @error_logging
-    async def points_of_interest(root, info, public: bool = False) -> List[PointOfInterest]:
-        if not info.context.user_id and not public:
-            raise HTTPException(HTTP_401_UNAUTHORIZED)
-
-        return await BaseQueryResolver(PointOfInterest, models.PointOfInterest).get_list(
-            info.context.user_id,
-            only_public=public
+    @allow_public
+    async def points_of_interest(
+            root, info,
+            limit: int, offset: int = 0,
+            public: bool = False
+    ) -> PaginationWindow[PointOfInterest]:
+        query = BaseQueryResolver(PointOfInterest, models.PointOfInterest).get_query(
+            info.context.user_id, only_public=public
+        )
+        return await get_pagination_window(
+            query=query,
+            item_type=PointOfInterest,
+            limit=limit,
+            offset=offset
         )
 
     @strawberry.field()
+    @allow_public
     async def point_of_interest(root, info, id: int, public: bool = False) -> PointOfInterest:
-        if not info.context.user_id and not public:
-            raise HTTPException(HTTP_401_UNAUTHORIZED)
-
         return await BaseQueryResolver(PointOfInterest, models.PointOfInterest).get_one(
             id, info.context.user_id,
             only_public=public

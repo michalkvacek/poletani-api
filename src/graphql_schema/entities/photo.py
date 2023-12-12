@@ -1,7 +1,7 @@
 from typing import List, Optional
 import strawberry
 from database import models
-from decorators.endpoints import authenticated_user_only
+from decorators.endpoints import authenticated_user_only, allow_public
 from decorators.error_logging import error_logging
 from graphql_schema.entities.resolvers.base import BaseQueryResolver
 from graphql_schema.entities.resolvers.photo import PhotoMutationResolver, PhotoQueryResolver
@@ -13,6 +13,7 @@ from graphql_schema.entities.types.mutation_input import EditPhotoInput, UploadP
 class PhotoQueries:
     @strawberry.field()
     @error_logging
+    @allow_public
     async def photos(
             root, info,
             flight_id: Optional[int] = None,
@@ -32,8 +33,9 @@ class PhotoQueries:
 
     @strawberry.field()
     @error_logging
-    async def photo(root, info, id: int) -> Photo:
-        return await BaseQueryResolver(Photo, models.Photo).get_one(id, user_id=info.context.user_id)
+    @allow_public
+    async def photo(root, info, id: int, public: Optional[bool] = False,) -> Photo:
+        return await BaseQueryResolver(Photo, models.Photo).get_one(id, user_id=info.context.user_id, public=public)
 
 
 @strawberry.type

@@ -41,8 +41,7 @@ class LoginEndpoint(AuthEndpoint):
 
         return {
             "user": user,
-            "access_token": access_token,
-            "access_token_validity": self.access_security.access_expires_delta.total_seconds(),
+            "access_token": access_token
         }
 
 

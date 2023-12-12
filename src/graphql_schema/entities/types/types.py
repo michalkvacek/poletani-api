@@ -10,7 +10,8 @@ from graphql_schema.dataloaders.multi_models import (
     poi_photos_dataloader, flight_by_poi_dataloader, flight_copilots_dataloader, flight_track_dataloader,
     photos_dataloader, flights_by_aircraft_dataloader, users_in_organization_dataloader,
     aircrafts_from_organization_dataloader, user_organizations_dataloader, flights_by_event_dataloader,
-    flights_by_copilot_dataloader, public_flights_by_event_dataloader, public_flights_by_copilot_dataloader, photo_copilots_dataloader, photos_aircraft_dataloader, copilots_in_photo_dataloader
+    flights_by_copilot_dataloader, public_flights_by_event_dataloader, public_flights_by_copilot_dataloader,
+    photo_copilots_dataloader, photos_aircraft_dataloader, copilots_in_photo_dataloader
 )
 from graphql_schema.dataloaders.single_model import (
     poi_dataloader, poi_type_dataloader, event_dataloader, aircraft_dataloader, airport_dataloader,
@@ -18,9 +19,7 @@ from graphql_schema.dataloaders.single_model import (
     photo_dataloader, user_dataloader
 )
 from graphql_schema.sqlalchemy_to_strawberry_type import strawberry_sqlalchemy_type
-from paths import (
-    get_public_url, get_avatar_url, get_title_image_url, get_photo_thumbnail_url, get_photo_url, FLIGHT_GPX_TRACK_PATH
-)
+from paths import get_avatar_url, get_title_image_url, get_photo_thumbnail_url, get_photo_url, FLIGHT_GPX_TRACK_PATH
 
 
 @strawberry.type

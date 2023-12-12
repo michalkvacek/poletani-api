@@ -1,17 +1,16 @@
 import asyncio
-from typing import List, Optional
+from typing import Optional
 import strawberry
-from fastapi import HTTPException
-from starlette.status import HTTP_401_UNAUTHORIZED
 from background_jobs.weather import download_weather
 from database import models
-from decorators.endpoints import authenticated_user_only
-from decorators.error_logging import error_logging
 from database.transaction import get_session
+from decorators.endpoints import authenticated_user_only, allow_public
+from decorators.error_logging import error_logging
 from graphql_schema.entities.resolvers.flight import handle_aircraft_save, FlightMutationResolver, FlightQueryResolver
 from graphql_schema.entities.types.mutation_input import EditFlightInput, CreateFlightInput
-from .helpers.combobox import handle_combobox_save
 from graphql_schema.entities.types.types import Flight
+from .helpers.combobox import handle_combobox_save
+from .helpers.pagination import PaginationWindow, get_pagination_window
 
 
 @strawberry.type
@@ -19,34 +18,43 @@ class FlightQueries:
 
     @strawberry.field()
     @error_logging
+    @allow_public
     async def flights(
             root, info,
+            limit: int,
+            offset: int = 0,
             username: Optional[str] = None,
             public: Optional[bool] = False,
             copilot_id: Optional[int] = None,
             point_of_interest_id: Optional[int] = None,
             aircraft_id: Optional[int] = None,
-    ) -> List[Flight]:
-        if not info.context.user_id and not public:
-            raise HTTPException(HTTP_401_UNAUTHORIZED)
-
-        return await FlightQueryResolver().get_list(
+    ) -> PaginationWindow[Flight]:
+        query = FlightQueryResolver().get_query(
             user_id=info.context.user_id,
             username=username,
             only_public=public,
             copilot_id=copilot_id,
             aircraft_id=aircraft_id,
             point_of_interest_id=point_of_interest_id
+        )
 
+        return await get_pagination_window(
+            query=query,
+            item_type=Flight,
+            limit=limit,
+            offset=offset,
         )
 
     @strawberry.field()
     @error_logging
+    @allow_public
     async def flight(root, info, id: int, username: Optional[str] = None, public: Optional[bool] = False) -> Flight:
-        if not info.context.user_id and not public:
-            raise HTTPException(HTTP_401_UNAUTHORIZED)
-
-        return await FlightQueryResolver().get_one(id, user_id=info.context.user_id, username=username, public=public)
+        return await FlightQueryResolver().get_one(
+            id,
+            user_id=info.context.user_id,
+            username=username,
+            public=public
+        )
 
 
 @strawberry.type
