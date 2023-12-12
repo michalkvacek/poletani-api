@@ -24,6 +24,7 @@ class FlightQueries:
             limit: int,
             offset: int = 0,
             username: Optional[str] = None,
+            event_id: Optional[int] = None,
             public: Optional[bool] = False,
             copilot_id: Optional[int] = None,
             point_of_interest_id: Optional[int] = None,
@@ -32,6 +33,7 @@ class FlightQueries:
         query = FlightQueryResolver().get_query(
             user_id=info.context.user_id,
             username=username,
+            event_id=event_id,
             only_public=public,
             copilot_id=copilot_id,
             aircraft_id=aircraft_id,

@@ -35,6 +35,9 @@ class FlightQueryResolver(BaseQueryResolver):
             only_public=only_public
         )
 
+        if kwargs.get("event_id"):
+            query = query.filter(models.Flight.event_id == kwargs['event_id'])
+
         if kwargs.get("aircraft_id"):
             query = query.filter(models.Flight.aircraft_id == kwargs['aircraft_id'])
 
