@@ -29,6 +29,7 @@ class PhotoQueries:
             copilot_id=copilot_id,
             aircraft_id=aircraft_id,
             point_of_interest_id=point_of_interest_id,
+            order_by=[models.Photo.exposed_at]
         )
 
     @strawberry.field()
