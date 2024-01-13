@@ -128,8 +128,12 @@ class Flight:
     copilots: Optional[List[Copilot]] = strawberry.field(resolver=load_copilots)
     event: Optional[Event] = strawberry.field(resolver=load_event)
     aircraft: Aircraft = strawberry.field(resolver=lambda root: aircraft_dataloader.load(root.aircraft_id))
-    takeoff_airport: Airport = strawberry.field(resolver=lambda root: airport_dataloader.load(root.takeoff_airport_id))
-    landing_airport: Airport = strawberry.field(resolver=lambda root: airport_dataloader.load(root.landing_airport_id))
+    takeoff_airport: Optional[Airport] = strawberry.field(
+        resolver=lambda root: airport_dataloader.load(root.takeoff_airport_id)
+    )
+    landing_airport: Optional[Airport] = strawberry.field(
+        resolver=lambda root: airport_dataloader.load(root.landing_airport_id)
+    )
     title_photo: Optional[Photo] = strawberry.field(resolver=lambda root: photo_dataloader.load(root.title_photo_id))
     track: List[FlightTrack] = strawberry.field(resolver=lambda root: flight_track_dataloader.load(root.id))
     takeoff_weather_info: Optional[WeatherInfo] = strawberry.field(

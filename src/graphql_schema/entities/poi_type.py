@@ -21,7 +21,8 @@ class PointOfInterestTypeQueries:
     @authenticated_user_only()
     async def point_of_interest_type(root, info, id: int) -> PointOfInterestType:
         return await BaseQueryResolver(PointOfInterestType, models.PointOfInterestType).get_one(
-            id, info.context.user_id
+            object_id=id,
+            user_id=info.context.user_id
         )
 
 #

@@ -1,6 +1,7 @@
 import os
 from typing import Optional
 from config import API_URL
+from logger import log
 
 PHOTO_BASE_PATH = ""
 AIRCRAFT_BASE_PATH = ""
@@ -18,16 +19,27 @@ def get_public_url(filename: Optional[str]) -> str:
 
 
 def get_photo_url(root) -> str:
-    return get_public_url(f"photos/{root.flight_id}/{root.filename}")
+    filename = root.filename if not root.filename_extension else f"{root.filename}.{root.filename_extension}"
+    return get_public_url(f"photos/{root.flight_id}/{filename}?cache={root.cache_key}")
 
 
 def get_photo_thumbnail_url(root) -> str:
-    thumbnail = get_photo_basepath(root.flight_id) + "/thumbs/" + root.filename
-    if not os.path.isfile(thumbnail):
-        # TODO: logovani
-        return get_public_url(f"photos/{root.flight_id}/{root.filename}")
+    filename = root.filename if not root.filename_extension else f"{root.filename}.{root.filename_extension}"
+    thumbnail_names = [
+        f"thumbs/{root.filename}.webp",
+        f"thumbs/{filename}",
+        filename,
+    ]
 
-    return get_public_url(f"photos/{root.flight_id}/thumbs/{root.filename}")
+    for thumbnail in thumbnail_names:
+        if os.path.isfile(f"{get_photo_basepath(root.flight_id)}/{thumbnail}"):
+            # TODO: logovani
+            return get_public_url(f"photos/{root.flight_id}/{thumbnail}?cache={root.cache_key}")
+        else:
+            log.warning(f"Missing thumbnail {thumbnail} in flight ID={root.flight_id}")
+
+    # TODO: doplnit chybejici nahled, tohle by se ale nikdy nemelo stat! Vzdy musi existovat alespon originalni fotka
+    return get_public_url(f"photos/missing-thumbnail.webp")
 
 
 def get_avatar_url(user) -> str:

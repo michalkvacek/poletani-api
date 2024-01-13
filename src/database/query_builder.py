@@ -25,6 +25,8 @@ class QueryBuilder:
 
         if only_public and hasattr(self.model, "is_public"):
             query = query.filter(self.model.is_public.is_(True))
+            if hasattr(self.model, "url_slug"):
+                query = query.filter(self.model.url_slug != '')
         elif hasattr(self.model, "created_by_id") and created_by_id:
             query = query.filter(or_(
                 self.model.created_by_id.is_(None),
@@ -33,5 +35,7 @@ class QueryBuilder:
 
         if order_by:
             query = query.order_by(*order_by)
+        elif hasattr(self.model, "name"):
+            query = query.order_by(self.model.name)
 
         return query

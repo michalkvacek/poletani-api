@@ -36,7 +36,11 @@ class PhotoQueries:
     @error_logging
     @allow_public
     async def photo(root, info, id: int, public: Optional[bool] = False,) -> Photo:
-        return await BaseQueryResolver(Photo, models.Photo).get_one(id, user_id=info.context.user_id, public=public)
+        return await BaseQueryResolver(Photo, models.Photo).get_one(
+            object_id=id,
+            user_id=info.context.user_id,
+            only_public=public
+        )
 
 
 @strawberry.type

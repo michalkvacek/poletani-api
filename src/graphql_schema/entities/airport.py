@@ -19,4 +19,7 @@ class AirportQueries:
     @error_logging
     @authenticated_user_only()
     async def airport(root, info, id: int) -> Airport:
-        return await BaseQueryResolver(Airport, models.Airport).get_one(id, user_id=info.context.user_id)
+        return await BaseQueryResolver(Airport, models.Airport).get_one(
+            object_id=id,
+            user_id=info.context.user_id
+        )

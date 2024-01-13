@@ -1,5 +1,6 @@
 import os
 import shutil
+from time import time
 from typing import Optional
 from PIL import Image
 from pydantic import BaseModel
@@ -91,29 +92,35 @@ class PhotoMutationResolver(BaseMutationResolver):
 
     async def upload(self, info, input: UploadPhotoInput) -> Photo:
         path = get_photo_basepath(input.flight_id)
-        filename = await handle_file_upload(input.photo, path)
-        exif_info = await parse_exif_info(path, filename)
+        img_name = await handle_file_upload(input.photo, path, uid_prefix=False, overwrite=False)
 
-        img = Image.open(f"{path}/{filename}")
-        photo = await PhotoMutationResolver().create(
-            user_id=info.context.user_id,
-            data={
-                "flight_id": input.flight_id,
-                "name": input.name,
-                "filename": filename,
-                "width": img.width,
-                "height": img.height,
-                "description": input.description,
-                "exposed_at": exif_info.get("datetime_original"),
-                "gps_latitude": exif_info.get("gps_latitude"),
-                "gps_longitude": exif_info.get("gps_longitude"),
-                "gps_altitude": exif_info.get("gps_altitude"),
-                "is_flight_cover": False,
-            },
-        )
+        exif_info = await parse_exif_info(path, img_name)
 
-        info.context.background_tasks.add_task(resize_photo, path=path, filename=filename, photo_id=photo.id)
-        info.context.background_tasks.add_task(generate_thumbnail, path=path, filename=filename)
+        img = Image.open(f"{path}/{img_name}")
+        filename, filename_ext = os.path.splitext(img_name)
+
+        async with get_session() as db:
+            photo = await PhotoMutationResolver()._do_create(
+                db,
+                data={
+                    "flight_id": input.flight_id,
+                    "name": input.name,
+                    "filename": filename,
+                    "filename_extension": filename_ext[1:],  # nechci ukladat tecku na zacatku
+                    "cache_key": int(time()),
+                    "width": img.width,
+                    "height": img.height,
+                    "description": input.description,
+                    "exposed_at": exif_info.get("datetime_original"),
+                    "gps_latitude": exif_info.get("gps_latitude"),
+                    "gps_longitude": exif_info.get("gps_longitude"),
+                    "gps_altitude": exif_info.get("gps_altitude"),
+                    "created_by_id": info.context.user_id,
+                },
+            )
+
+        info.context.background_tasks.add_task(resize_photo, path=path, filename=img_name, photo_id=photo.id)
+        info.context.background_tasks.add_task(generate_thumbnail, path=path, filename=img_name)
 
         if exif_info.get("gps_latitude") and exif_info.get("gps_longitude"):
             info.context.background_tasks.add_task(add_terrain_elevation_to_photo, photo=photo)
@@ -164,7 +171,8 @@ class PhotoMutationResolver(BaseMutationResolver):
         async with get_session() as db:
             return await self._do_update(db, obj={"id": id}, data={
                 "width": editor.img.width,
-                "height": editor.img.height
+                "height": editor.img.height,
+                "cache_key": int(time())
             })
 
     async def adjust(self, id: int, user_id: int, adjustment: AdjustmentInput, info):
@@ -209,15 +217,25 @@ class PhotoMutationResolver(BaseMutationResolver):
 
             return await self._do_update(db, obj={"id": id}, data={
                 "width": editor.img.width,
-                "height": editor.img.height
+                "height": editor.img.height,
+                "cache_key": int(time())
             })
 
     async def delete(self, user_id: int, id: int) -> Photo:
         photo = await super().delete(user_id, id)
 
         base_path = get_photo_basepath(photo.flight_id)
-        delete_file(f"{base_path}/{photo.filename}", silent=True)
-        delete_file(f"{base_path}/_original_{photo.filename}", silent=True)
-        delete_file(f"{base_path}/thumbs/{photo.filename}", silent=True)
+
+        files_to_delete = [
+            photo.filename,
+            f"_original_{photo.filename}",
+            f"{photo.filename}.{photo.filename_extension}",
+            f"_original_{photo.filename}.{photo.filename_extension}",
+            f"thumbs/{photo.filename}",
+            f"thumbs/{photo.filename}.{photo.filename_extension}",
+            f"thumbs/{photo.filename}.webp",
+        ]
+        for filename in files_to_delete:
+            delete_file(f"{base_path}/{filename}", silent=True)
 
         return photo

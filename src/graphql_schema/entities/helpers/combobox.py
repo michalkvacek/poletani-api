@@ -15,9 +15,10 @@ async def handle_combobox_save(
     if input.id:
         return input.id
     else:
-
         if not extra_data:
             extra_data = {}
+
+        # TODO: vyhledat podle `name_column` existujici zaznam, pokud nebude, az pak vytvorit
 
         data = {name_column: input.name, **extra_data}
         if hasattr(model, "created_by_id"):

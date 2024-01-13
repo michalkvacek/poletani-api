@@ -127,11 +127,12 @@ class PhotoEditor:
         return img_io
 
     def write_to_file(
-            self, quality: int = 90, dest_path: Optional[str] = None, dest_filename: Optional[str] = None
+            self, quality: int = 90, dest_path: Optional[str] = None, dest_filename: Optional[str] = None,
+            format_: Optional[str] = "JPEG"
     ) -> str:
         check_directories(dest_path or self.path)
 
         dest = f"{dest_path or self.path}/{dest_filename or self.filename}"
-        self.img.save(dest, 'JPEG', quality=quality)
+        self.img.save(dest, format_, quality=quality)
 
         return dest

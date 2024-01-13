@@ -19,14 +19,18 @@ class OrganizationQueries:
     @authenticated_user_only()
     async def organizations(root, info) -> List[Organization]:
         return await BaseQueryResolver(Organization, models.Organization).get_list(
-            info.context.user_id, order_by=[models.Organization.name]
+            info.context.user_id,
+            order_by=[models.Organization.name]
         )
 
     @strawberry.field()
     @error_logging
     @authenticated_user_only()
     async def organization(root, info, id: int) -> Organization:
-        return await BaseQueryResolver(Organization, models.Organization).get_one(id, info.context.user_id)
+        return await BaseQueryResolver(Organization, models.Organization).get_one(
+            object_id=id,
+            user_id=info.context.user_id
+        )
 
 
 @strawberry.type
@@ -36,24 +40,17 @@ class OrganizationMutation:
     @error_logging
     @authenticated_user_only()
     async def create_organization(root, info, input: CreateOrganizationInput) -> Organization:
-        return await BaseMutationResolver(Organization, models.Organization).create(
-            data=input.to_dict(),
-            user_id=info.context.user_id
-        )
+        return await BaseMutationResolver(Organization, models.Organization).create(info.context, data=input)
 
     @strawberry.mutation
     @error_logging
     @authenticated_user_only()
     async def edit_organization(root, info, id: int, input: EditOrganizationInput) -> Organization:
-        async with get_session() as db:
-            organization = (await db.scalars(
-                BaseQueryResolver(Organization, models.Organization).get_query(
-                    user_id=info.context.user_id, object_id=id
-                )
-            )).one()
-
-            updated_organization = await models.Organization.update(db, obj=organization, data=input.to_dict())
-            return Organization(**updated_organization.as_dict())
+        return await BaseMutationResolver(Organization, models.Organization).update(
+            id,
+            data=input,
+            user_id=info.context.user_id
+        )
 
 
 @strawberry.type

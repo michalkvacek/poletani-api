@@ -1,15 +1,17 @@
-from typing import List
+from typing import List, Optional
 import strawberry
+from graphql import GraphQLError
+
 from database import models
 from decorators.endpoints import authenticated_user_only, allow_public
 from database.transaction import get_session
 from decorators.error_logging import error_logging
 from graphql_schema.entities.helpers.combobox import handle_combobox_save
+from graphql_schema.entities.helpers.detail import get_detail_filters
 from graphql_schema.entities.helpers.pagination import get_pagination_window, PaginationWindow
 from graphql_schema.entities.resolvers.base import BaseQueryResolver, BaseMutationResolver
 from graphql_schema.entities.types.types import PointOfInterest
 from graphql_schema.entities.types.mutation_input import CreatePointOfInterestInput, EditPointOfInterestInput
-
 
 @strawberry.type
 class PointOfInterestQueries:
@@ -33,10 +35,18 @@ class PointOfInterestQueries:
 
     @strawberry.field()
     @allow_public
-    async def point_of_interest(root, info, id: int, public: bool = False) -> PointOfInterest:
+    async def point_of_interest(
+            root, info,
+            url_slug: Optional[str] = None,
+            id: Optional[int] = None,
+            public: bool = False
+    ) -> PointOfInterest:
+        filter_params = get_detail_filters(id, url_slug)
+
         return await BaseQueryResolver(PointOfInterest, models.PointOfInterest).get_one(
-            id, info.context.user_id,
-            only_public=public
+            user_id=info.context.user_id,
+            only_public=public,
+            **filter_params
         )
 
 
@@ -54,9 +64,10 @@ class PointOfInterestMutation:
                     db, models.PointOfInterestType, input.type, info.context.user_id
                 )
 
-        return await BaseMutationResolver(PointOfInterest, models.PointOfInterest).create(
-            input_data, info.context.user_id
-        )
+            input_data['created_by_id'] = info.context.user_id
+            return await BaseMutationResolver(PointOfInterest, models.PointOfInterest)._do_create(
+                db, input_data
+            )
 
     @strawberry.mutation
     @error_logging

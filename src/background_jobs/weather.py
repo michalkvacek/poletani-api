@@ -13,6 +13,7 @@ async def download_weather(date_time: datetime, flight_id: int, airport_id: int,
 
     try:
         weather = await weather_api.get_weather_for_hour(date_time.astimezone(), gps=gps)
+        log.warning(weather)
     except Exception as e:
         log.error(f"Error in downloading weather: {e}")
         return None

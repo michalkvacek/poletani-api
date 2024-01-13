@@ -102,7 +102,7 @@ class AdjustmentInput:
     "takeoff_weather_info_id", "landing_weather_info_id", "gpx_track_filename", "event_id"
 ], all_optional=True)
 class EditFlightInput(BaseGraphqlInputType):
-    gpx_track: Optional[Upload] = None  # TODO: poresit validaci uploadovaneho souboru!
+    gpx_track_file: Optional[Upload] = None  # TODO: poresit validaci uploadovaneho souboru!
     track: Optional[List[TrackItemInput]] = None
     copilots: Optional[List[ComboboxInput]] = None
     aircraft: Optional[ComboboxInput] = None
@@ -114,10 +114,11 @@ class EditFlightInput(BaseGraphqlInputType):
 @strawberry.input()
 class CreateFlightInput(BaseGraphqlInputType):
     aircraft: ComboboxInput
-    landing_airport: ComboboxInput
-    takeoff_airport: ComboboxInput
-    takeoff_datetime: datetime
-    landing_datetime: datetime
+    gpx_track_file: Optional[Upload] = None  # TODO: poresit validaci uploadovaneho souboru!
+    landing_airport: Optional[ComboboxInput] = None
+    takeoff_airport: Optional[ComboboxInput] = None
+    takeoff_datetime: Optional[datetime] = None
+    landing_datetime: Optional[datetime] = None
 
 
 @strawberry.input()

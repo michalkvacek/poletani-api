@@ -1,7 +1,7 @@
 from __future__ import annotations
 import datetime
 from typing import Set, List
-from sqlalchemy import String, DateTime, ForeignKey, Text, Integer, func, Table, Column, Boolean, select, Float
+from sqlalchemy import String, DateTime, ForeignKey, Text, Integer, func, Table, Column, Boolean, select, Float, Enum
 from sqlalchemy.orm import Mapped, relationship, as_declarative, mapped_column
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -74,6 +74,8 @@ class Airport(BaseModel):
     gps_latitude: Mapped[float] = mapped_column(Float, nullable=True)
     gps_longitude: Mapped[float] = mapped_column(Float, nullable=True)
     elevation: Mapped[int] = mapped_column(Integer, nullable=True)
+    airport_type: Mapped[str] = mapped_column(Enum("airport", "ull", "heliport"), nullable=False, server_default='airport')  # noqa
+    use_in_gpx_guess: Mapped[bool] = mapped_column(Boolean, server_default='1')
     is_public: Mapped[bool] = mapped_column(Boolean, server_default='0')
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'), nullable=True)  # automaticky import nebude mit ID  # noqa
@@ -103,7 +105,8 @@ class PointOfInterest(BaseModel):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    url_slug: Mapped[str] = mapped_column(String(128), nullable=False, server_default="")
     title_photo_id: Mapped[int] = mapped_column(Integer, ForeignKey('photo.id'), nullable=True)
     gps_latitude: Mapped[float] = mapped_column(Float, nullable=True)
     gps_longitude: Mapped[float] = mapped_column(Float, nullable=True)
@@ -122,10 +125,11 @@ class Photo(BaseModel):
     __tablename__ = "photo"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, server_default="")
+    description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     filename: Mapped[str] = mapped_column(String(128), nullable=False)
-    is_flight_cover: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="0")  # TODO: odstranit
-    description: Mapped[str] = mapped_column(Text, nullable=False)
+    filename_extension: Mapped[str] = mapped_column(String(4), nullable=False)
+    cache_key: Mapped[str] = mapped_column(String(128), nullable=True)
     width: Mapped[int] = mapped_column(Integer, nullable=False)
     height: Mapped[int] = mapped_column(Integer, nullable=False)
     exposed_at: Mapped[datetime] = mapped_column(DateTime, nullable=True)
@@ -172,7 +176,6 @@ class Aircraft(BaseModel):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     call_sign: Mapped[str] = mapped_column(String(16), nullable=False)
-    photo_filename: Mapped[str] = mapped_column(String(128), nullable=True)  # TODO: odstranit
     title_photo_id: Mapped[int] = mapped_column(Integer, ForeignKey('photo.id'), nullable=True)
     is_public: Mapped[bool] = mapped_column(Boolean, server_default='0')
     manufacturer: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
@@ -253,7 +256,8 @@ class Event(BaseModel):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    url_slug: Mapped[str] = mapped_column(String(128), nullable=False, server_default="")
     date_from: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     date_to: Mapped[datetime] = mapped_column(DateTime, nullable=True)
     organization_id: Mapped[int] = mapped_column(Integer, ForeignKey('organization.id'), nullable=True)
@@ -270,13 +274,13 @@ class Flight(BaseModel):
     __tablename__ = "flight"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    name: Mapped[str] = mapped_column(String(128), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
+    name: Mapped[str] = mapped_column(String(128), nullable=False, server_default="")
+    description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
+    url_slug: Mapped[str] = mapped_column(String(128), nullable=False, server_default="")
     event_id: Mapped[int] = mapped_column(Integer, ForeignKey("event.id"), nullable=True)
     title_photo_id: Mapped[int] = mapped_column(Integer, ForeignKey('photo.id'), nullable=True)
-
-    takeoff_airport_id: Mapped[int] = mapped_column(Integer, ForeignKey("airport.id"), nullable=False)
-    landing_airport_id: Mapped[int] = mapped_column(Integer, ForeignKey("airport.id"), nullable=False)
+    takeoff_airport_id: Mapped[int] = mapped_column(Integer, ForeignKey("airport.id"), nullable=True)
+    landing_airport_id: Mapped[int] = mapped_column(Integer, ForeignKey("airport.id"), nullable=True)
     takeoff_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     landing_datetime: Mapped[datetime] = mapped_column(DateTime, nullable=False)
     duration_total: Mapped[int] = mapped_column(Integer, nullable=True)
@@ -310,7 +314,9 @@ class Copilot(BaseModel):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
+    url_slug: Mapped[str] = mapped_column(String(128), nullable=False, server_default="")
     title_photo_id: Mapped[int] = mapped_column(Integer, ForeignKey('photo.id'), nullable=True)
+    is_public: Mapped[bool] = mapped_column(Boolean, server_default='0')
     created_by_id: Mapped[int] = mapped_column(Integer, ForeignKey('user.id'))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default='0')
@@ -354,7 +360,7 @@ class User(BaseModel):
     id: Mapped[int] = mapped_column(primary_key=True)
     email: Mapped[str] = mapped_column(String(128), nullable=False, unique=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
-    description: Mapped[str] = mapped_column(Text, nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False, server_default="")
     public_username: Mapped[str] = mapped_column(String(128), nullable=True, unique=True)
     avatar_image_filename: Mapped[str] = mapped_column(String(128), nullable=True)
     title_image_filename: Mapped[str] = mapped_column(String(128), nullable=True)

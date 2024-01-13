@@ -21,10 +21,17 @@ class AircraftQueryResolver(BaseQueryResolver):
             *args,
             **kwargs,
     ):
+        call_sign = kwargs.get("call_sign")
+        filters = {}
+        if object_id:
+            filters['object_id'] = object_id
+        if call_sign:
+            filters['call_sign'] = call_sign
+
         query = super().get_query(
             order_by=[models.Aircraft.id.desc()],
-            object_id=object_id,
-            user_id=user_id if not organization_ids else None
+            user_id=user_id if not organization_ids else None,
+            **filters
         )
         if organization_ids:
             query = (
@@ -43,20 +50,22 @@ class AircraftMutationResolver(BaseMutationResolver):
     def __init__(self):
         super().__init__(graphql_type=Aircraft, model=models.Aircraft)
 
-    async def create_new(self, data: CreateAircraftInput, user_id: int) -> Aircraft:
+    async def create(self, context, data: CreateAircraftInput) -> Aircraft:
         input_data = data.to_dict()
-        if data.organization:
-            async with get_session() as db:
+
+        async with get_session() as db:
+            input_data['created_by_id'] = context.user_id
+            if data.organization:
                 input_data['organization_id'] = await handle_combobox_save(
                     db,
                     models.Organization,
                     input=data.organization,
-                    user_id=user_id,
+                    user_id=context.user_id,
                 )
 
-        return await self.create(data=input_data, user_id=user_id)
+            return await self._do_create(db, data=input_data)
 
-    async def edit(self, id: int, user_id: int, data: EditAircraftInput) -> Aircraft:
+    async def update(self, id: int, user_id: int, data: EditAircraftInput) -> Aircraft:
         update_data = data.to_dict()
         async with get_session() as db:
             if data.organization:
@@ -66,5 +75,5 @@ class AircraftMutationResolver(BaseMutationResolver):
                     input=data.organization,
                     user_id=user_id,
                 )
-            aircraft = await models.Aircraft.update(db, id=id, data=update_data)
-            return Aircraft(**aircraft.as_dict())
+
+            return await self._do_update(db, id, update_data)
