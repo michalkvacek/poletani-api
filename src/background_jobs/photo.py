@@ -10,8 +10,8 @@ async def resize_photo(path: str, filename: str, photo_id: int):
     editor.resize(new_width=2500)
 
     name, _ = os.path.splitext(filename)
-    editor.write_to_file(quality=85, format_="webp", dest_filename=f"{name}.webp")
-    editor.write_to_file(quality=85)  # toto je potreba pro prvni nacteni nahledu ihned po nahrani, pripadne pro
+    editor.write_to_file(quality=95, format_="webp", dest_filename=f"{name}.webp")
+    editor.write_to_file(quality=80)  # toto je potreba pro prvni nacteni nahledu ihned po nahrani, pripadne pro
     # vygenerovani nahledu (async, muze se delat pred/behem zmensovani fotky -> v tu dobu jeste neexistuje webp)
     width, height = editor.img_size
 

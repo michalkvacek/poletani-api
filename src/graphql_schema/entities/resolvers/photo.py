@@ -80,7 +80,7 @@ class PhotoMutationResolver(BaseMutationResolver):
         async with get_session() as db:
             photo = await self._get_one(db, id, created_by_id=user_id)
             flight_id = photo.flight_id
-            filename = photo.filename
+            filename = photo.filename+"."+photo.filename_extension
 
         path = get_photo_basepath(flight_id)
         return PhotoDetailInfo(

@@ -49,7 +49,7 @@ class CreateEventInput(BaseGraphqlInputType):
     pass
 
 
-@strawberry_sqlalchemy_input(model=models.Event, exclude_fields=["id"])
+@strawberry_sqlalchemy_input(model=models.Event, exclude_fields=["id"], all_optional=True)
 class EditEventInput(BaseGraphqlInputType):
     pass
 

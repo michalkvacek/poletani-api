@@ -35,7 +35,7 @@ async def migrate_photos_to_webp():
                 await models.Photo.update(session, {
                     "filename": new_filename,
                     "cache_key": int(time.time()),
-                    "filename_ext": "webp",
+                    "filename_extension": "webp",
                 }, obj=photo)
                 print(path, photo.filename, "=>", new_filename, "OK")
             except (Exception, DecompressionBombWarning) as e:
